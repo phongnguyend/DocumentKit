@@ -1,0 +1,33 @@
+name: powerpoint-to-pdf
+
+services:
+  playground:
+    image: powerpoint-to-pdf/playground:local
+    build:
+      context: ./PowerPointToPdf.Playground
+    depends_on:
+      - proxy
+    ports:
+      - "8114:80"
+
+  proxy:
+    image: powerpoint-to-pdf/proxy:local
+    build:
+      context: .
+      dockerfile: PowerPointToPdf.Proxy/Dockerfile
+    init: true
+    depends_on:
+      - libreoffice-api
+    environment:
+      ReverseProxy__Clusters__libreoffice-cluster__Destinations__destination1__Address: http://libreoffice-api:8080/
+    ports:
+      - "8110:8080"
+
+  libreoffice-api:
+    image: powerpoint-to-pdf/libreoffice-api:local
+    build:
+      context: .
+      dockerfile: PowerPointToPdf.LibreOffice.Api/Dockerfile
+    init: true
+    ports:
+      - "8111:8080"

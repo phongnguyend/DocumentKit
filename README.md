@@ -4,12 +4,14 @@
 - [HtmlToPdf](src/HtmlToPdf/README.md): convert HTML files and webpage URLs using Chrome, Playwright, or PuppeteerSharp.
 - [ExcelToPdf](src/ExcelToPdf/README.md): convert Excel workbooks using LibreOffice.
 - [WordToPdf](src/WordToPdf/README.md): convert Word documents using LibreOffice.
+- [PowerPointToPdf](src/PowerPointToPdf/README.md): convert PowerPoint presentations using LibreOffice.
 
 ## Build workflows
 
 The independent [HtmlToPdf](.github/workflows/htmltopdf.yml),
-[ExcelToPdf](.github/workflows/exceltopdf.yml), and
-[WordToPdf](.github/workflows/wordtopdf.yml) GitHub Actions workflows run on
+[ExcelToPdf](.github/workflows/exceltopdf.yml),
+[WordToPdf](.github/workflows/wordtopdf.yml), and
+[PowerPointToPdf](.github/workflows/powerpointtopdf.yml) GitHub Actions workflows run on
 pushes and pull requests that change their solution folder or workflow file.
 They can also be started manually from the Actions tab.
 
@@ -43,6 +45,7 @@ Following the release-tag convention in `pdfobjectkit.yml`, push one of:
 | HtmlToPdf | `releases/htmltopdf/v1.2.3` | `<namespace>/html-to-pdf-playwright-api:1.2.3` |
 | ExcelToPdf | `releases/exceltopdf/v1.2.3` | `<namespace>/excel-to-pdf-libreoffice-api:1.2.3` |
 | WordToPdf | `releases/wordtopdf/v1.2.3` | `<namespace>/word-to-pdf-libreoffice-api:1.2.3` |
+| PowerPointToPdf | `releases/powerpointtopdf/v1.2.3` | `<namespace>/powerpoint-to-pdf-libreoffice-api:1.2.3` |
 | PdfObjectKit | `releases/pdfobjectkit/v1.2.3` | `<namespace>/pdfobjectkit-playground-api:1.2.3` |
 
 ```powershell
@@ -64,7 +67,7 @@ finish publishing that version. Manual dispatch on a release tag also publishes;
 manual dispatch on a branch only builds.
 
 For local .NET and service-image builds, run these commands from the relevant
-solution folder (replace `HtmlToPdf` with `ExcelToPdf` or `WordToPdf`):
+solution folder (replace `HtmlToPdf` with `ExcelToPdf` `WordToPdf`, or `PowerPointToPdf`):
 
 ```powershell
 dotnet build HtmlToPdf.slnx --configuration Release
@@ -79,7 +82,7 @@ Each solution includes a standalone `compose.published.yaml` that pulls its
 engine APIs, proxy, and playground from Docker Hub without building locally:
 
 ```powershell
-cd src/ExcelToPdf # Or src/HtmlToPdf or src/WordToPdf from the repository root
+cd src/ExcelToPdf # Or src/HtmlToPdf or src/WordToPdf or src/PowerPointToPdf from the repository root
 Copy-Item .env.sample .env # Only if .env does not already exist
 ```
 
@@ -103,7 +106,8 @@ tags. To pin a release, set `IMAGE_TAG=1.2.3` in `.env` before running the comma
 use the image version without the Git tag prefix or `v`.
 
 The playgrounds are available at http://localhost:8084 (HTML),
-http://localhost:8094 (Excel), and http://localhost:8104 (Word).
+http://localhost:8094 (Excel), http://localhost:8104 (Word), and
+http://localhost:8114 (PowerPoint).
 Published Compose uses the same project names and ports as local Compose, so
 it replaces that solution's existing containers when switching deployment modes.
 Images require Linux containers and target AMD64.

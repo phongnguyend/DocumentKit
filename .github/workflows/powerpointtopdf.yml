@@ -1,0 +1,179 @@
+name: PowerPointToPdf Build
+
+on:
+  push:
+    branches:
+      - '**'
+    tags:
+      - 'releases/powerpointtopdf/v*'
+    paths:
+      - 'src/PowerPointToPdf/**'
+      - '.github/workflows/powerpointtopdf.yml'
+  pull_request:
+    paths:
+      - 'src/PowerPointToPdf/**'
+      - '.github/workflows/powerpointtopdf.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ !startsWith(github.ref, 'refs/tags/releases/powerpointtopdf/v') }}
+
+jobs:
+  dotnet:
+    name: .NET Release build
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: src/PowerPointToPdf
+    steps:
+      - uses: actions/checkout@v6
+      - name: Set up .NET 10
+        uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: '10.0.x'
+      - name: Restore
+        run: dotnet restore PowerPointToPdf.slnx
+      - name: Build
+        run: dotnet build PowerPointToPdf.slnx --configuration Release --no-restore
+
+  conversion-tests:
+    name: Playground and live conversion tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: src/PowerPointToPdf
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: '10.0.x'
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: src/PowerPointToPdf/PowerPointToPdf.Playground/package-lock.json
+      - name: Install Impress and PDF inspection tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends libreoffice-impress fonts-dejavu-core fonts-liberation poppler-utils
+      - name: Build services
+        run: dotnet build PowerPointToPdf.slnx --configuration Release
+      - name: Verify CLI conversion
+        run: |
+          dotnet run --project PowerPointToPdf.LibreOffice.Cli --configuration Release --no-build -- PowerPointToPdf.Playground/e2e/fixtures/sample.pptx /tmp/powerpoint-test.pdf
+          pdftotext /tmp/powerpoint-test.pdf /tmp/powerpoint-test.txt
+          grep -q 'PowerPoint to PDF test slide' /tmp/powerpoint-test.txt
+      - name: Start conversion services
+        run: |
+          dotnet run --project PowerPointToPdf.LibreOffice.Api --configuration Release --no-build > /tmp/powerpoint-api.log 2>&1 &
+          dotnet run --project PowerPointToPdf.Proxy --configuration Release --no-build > /tmp/powerpoint-proxy.log 2>&1 &
+          curl --fail --retry 30 --retry-connrefused --retry-delay 1 http://localhost:62830/health
+          curl --fail --retry 30 --retry-connrefused --retry-delay 1 http://localhost:62833/health
+      - name: Build and test playground
+        working-directory: src/PowerPointToPdf/PowerPointToPdf.Playground
+        env:
+          POWERPOINT_TO_PDF_LIVE_TEST: '1'
+        run: |
+          npm ci
+          npm run build
+          npx playwright install --with-deps chromium
+          npm run test:e2e
+      - name: Upload test diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: powerpoint-conversion-results
+          path: |
+            src/PowerPointToPdf/PowerPointToPdf.Playground/test-results/
+            /tmp/powerpoint-api.log
+            /tmp/powerpoint-proxy.log
+
+  docker:
+    name: Docker / ${{ matrix.image }}
+    needs: [dotnet, conversion-tests]
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      max-parallel: 4
+      matrix:
+        include:
+          - image: powerpoint-to-pdf/libreoffice-api
+            context: src/PowerPointToPdf
+            dockerfile: src/PowerPointToPdf/PowerPointToPdf.LibreOffice.Api/Dockerfile
+            cache-scope: powerpointtopdf-libreoffice-api
+          - image: powerpoint-to-pdf/libreoffice-cli
+            context: src/PowerPointToPdf
+            dockerfile: src/PowerPointToPdf/PowerPointToPdf.LibreOffice.Cli/Dockerfile
+            cache-scope: powerpointtopdf-libreoffice-cli
+          - image: powerpoint-to-pdf/proxy
+            context: src/PowerPointToPdf
+            dockerfile: src/PowerPointToPdf/PowerPointToPdf.Proxy/Dockerfile
+            cache-scope: powerpointtopdf-proxy
+          - image: powerpoint-to-pdf/playground
+            context: src/PowerPointToPdf/PowerPointToPdf.Playground
+            dockerfile: src/PowerPointToPdf/PowerPointToPdf.Playground/Dockerfile
+            cache-scope: powerpointtopdf-playground
+    steps:
+      - uses: actions/checkout@v6
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4
+      - name: Prepare Docker Hub release
+        if: startsWith(github.ref, 'refs/tags/releases/powerpointtopdf/v')
+        id: release
+        shell: bash
+        env:
+          DOCKERHUB_NAMESPACE: ${{ vars.DOCKERHUB_NAMESPACE || secrets.DOCKERHUB_USERNAME }}
+          IMAGE_NAME: ${{ matrix.image }}
+        run: |
+          version="${GITHUB_REF_NAME#releases/powerpointtopdf/v}"
+          if [[ ! "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$ || ${#version} -gt 128 ]]; then
+            echo "::error::Use releases/powerpointtopdf/vMAJOR.MINOR.PATCH, optionally followed by -prerelease."
+            exit 1
+          fi
+          if [[ ! "$DOCKERHUB_NAMESPACE" =~ ^[a-z0-9][a-z0-9_-]*$ ]]; then
+            echo "::error::Set DOCKERHUB_USERNAME and, optionally, the DOCKERHUB_NAMESPACE variable to a lowercase Docker Hub namespace."
+            exit 1
+          fi
+          repository="${IMAGE_NAME//\//-}"
+          echo "image=docker.io/$DOCKERHUB_NAMESPACE/$repository:$version" >> "$GITHUB_OUTPUT"
+          if [[ "$version" != *-* ]]; then
+            echo "latest=docker.io/$DOCKERHUB_NAMESPACE/$repository:latest" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Build image
+        uses: docker/build-push-action@v7
+        with:
+          context: ${{ matrix.context }}
+          file: ${{ matrix.dockerfile }}
+          platforms: linux/amd64
+          push: false
+          load: true
+          tags: ${{ matrix.image }}:ci
+          cache-from: type=gha,scope=${{ matrix.cache-scope }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.cache-scope }}
+      - name: Log in to Docker Hub
+        if: startsWith(github.ref, 'refs/tags/releases/powerpointtopdf/v')
+        uses: docker/login-action@v4
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+      - name: Publish image to Docker Hub
+        if: startsWith(github.ref, 'refs/tags/releases/powerpointtopdf/v')
+        shell: bash
+        env:
+          LOCAL_IMAGE: ${{ matrix.image }}:ci
+          RELEASE_IMAGE: ${{ steps.release.outputs.image }}
+          LATEST_IMAGE: ${{ steps.release.outputs.latest }}
+        run: |
+          docker tag "$LOCAL_IMAGE" "$RELEASE_IMAGE"
+          docker push "$RELEASE_IMAGE"
+          if [[ -n "$LATEST_IMAGE" ]]; then
+            docker tag "$LOCAL_IMAGE" "$LATEST_IMAGE"
+            docker push "$LATEST_IMAGE"
+          fi

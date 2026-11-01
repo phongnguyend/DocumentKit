@@ -1,0 +1,12 @@
+{
+  "profiles": {
+    "PowerPointToPdf.Proxy": {
+      "commandName": "Project",
+      "launchBrowser": false,
+      "applicationUrl": "http://localhost:62833",
+      "environmentVariables": {
+        "ASPNETCORE_ENVIRONMENT": "Development"
+      }
+    }
+  }
+}
