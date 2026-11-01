@@ -105,6 +105,15 @@ public sealed class PdfNativeParser
                 continue;
             }
 
+            // Some producers leave unused in-use entries pointing at byte zero.
+            // Byte zero is the required PDF header, never an indirect object.
+            // Omit these placeholders; references to them still fail validation
+            // (or Load when needed for parsing), rather than resolving another object.
+            if (location.Type == 1 && location.Offset == 0)
+            {
+                continue;
+            }
+
             var id = new PdfReference(number, location.Type == 2 ? 0 : location.GenerationOrIndex);
             if (id == encryptionId)
             {

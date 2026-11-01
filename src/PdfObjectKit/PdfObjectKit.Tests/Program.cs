@@ -106,3 +106,5 @@ PageReorderTests.Run();
 FlattenTests.Run();
 RedactionTests.Run();
 ContentRedactionTests.Run();
+NonBreakingSpaceTests.Run();
+XrefPlaceholderTests.Run();

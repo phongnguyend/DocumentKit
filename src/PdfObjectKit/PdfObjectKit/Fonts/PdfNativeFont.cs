@@ -124,6 +124,13 @@ internal sealed class PdfNativeFont
 
             if (baseEncoding == "WinAnsiEncoding")
             {
+                // WinAnsi non-breaking space uses the standard font's space glyph.
+                // Its advance is identical to code 32, while its Unicode stays U+00A0.
+                if (requireExplicitWidth && widths.TryGetValue(32, out var spaceWidth))
+                {
+                    widths[160] = spaceWidth;
+                }
+
                 const string special = "\u20ac\0\u201a\u0192\u201e\u2026\u2020\u2021\u02c6\u2030\u0160\u2039\u0152\0\u017d\0\0\u2018\u2019\u201c\u201d\u2022\u2013\u2014\u02dc\u2122\u0161\u203a\u0153\0\u017e\u0178";
                 for (var i = 128; i < 256; i++)
                 {
