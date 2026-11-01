@@ -1,17 +1,20 @@
 import { StrictMode, useEffect, useRef, useState, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { createRoot } from 'react-dom/client';
-import { ArrowDown, ArrowUp, Download, FileText, FolderOpen, Presentation, RotateCcw, RotateCw, Save, Trash2, X, Copy, Plus, Files, ChevronLeft, ChevronRight } from 'lucide-react';
+import { ArrowDown, ArrowUp, Download, FileText, FolderOpen, Presentation, RotateCcw, RotateCw, Save, Trash2, X, Copy, Plus, Files, ChevronLeft, ChevronRight, MousePointer2, TextCursor, ImagePlus, ImageIcon } from 'lucide-react';
 import { marked } from 'marked';
 import DOMPurify from 'dompurify';
 import { createPptxPreview } from './renderers/pptxRenderer';
 import { Modal } from './components/Modal';
 import { SlideThumbnail } from './components/SlideThumbnail';
+import { ImageEditor, type ImageObject } from './components/ImageEditor';
+import { ImageTransform } from './components/ImageTransform';
+import { ImageSourceDialog } from './components/ImageSourceDialog';
 import { ToolbarMenu } from './components/ToolbarMenu';
 import './style.css';
 
 type TextObject = { id: string; name: string; text: string };
-type Slide = { number: number; id: string; title: string; textObjects: TextObject[]; pictureCount: number; notes: string };
+type Slide = { number: number; id: string; title: string; textObjects: TextObject[]; pictureCount: number; images: ImageObject[]; notes: string };
 type Inspection = { width: number; height: number; slides: Slide[]; warnings: string[] };
 type Snapshot = { bytes: Blob; info: Inspection; deck: Awaited<ReturnType<typeof createPptxPreview>> };
 async function post(path: string, bytes: Blob, edit?: object) {
@@ -43,11 +46,14 @@ function download(bytes: Blob, name: string) {
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
-function SlideCanvas({ snapshot, page, selectable }: { snapshot: Snapshot; page: number; selectable: boolean }) {
+function SlideCanvas({ snapshot, page, mode, selected, onSelect, busy, onTransform }: { busy: boolean; onTransform: (id: string, bounds: { x: number; y: number; width: number; height: number }) => Promise<boolean>; snapshot: Snapshot; page: number; mode: 'text' | 'objects'; selected: string | null; onSelect: (id: string | null) => void }) {
   const host = useRef<HTMLDivElement>(null);
+  const [stageHost, setStageHost] = useState<HTMLDivElement | null>(null);
+  const image = snapshot.info.slides[page - 1]?.images?.find(item => item.id === selected);
   const [error, setError] = useState('');
   useEffect(() => {
     const abort = new AbortController();
+    setStageHost(null);
     setError('');
     const canvas = document.createElement('canvas');
     const factor = Math.min(2, 1800 / snapshot.deck.width, 1800 / snapshot.deck.height);
@@ -72,12 +78,14 @@ function SlideCanvas({ snapshot, page, selectable }: { snapshot: Snapshot; page:
       stage.style.height = `${canvas.height * scale}px`;
       layer.style.transform = `scale(${scale})`;
     });
-    void snapshot.deck.render(canvas, page, abort.signal, selectable ? layer : undefined).then(() => {
+    void snapshot.deck.render(canvas, page, abort.signal, layer).then(() => {
       if (!abort.signal.aborted) {
-        if (selectable) {
-          stage.append(layer);
+        for (const span of layer.querySelectorAll<HTMLElement>('[data-object-id]')) {
+          span.classList.toggle('selected-object', span.dataset.objectId === selected);
         }
+        stage.append(layer);
         host.current?.replaceChildren(stage);
+        setStageHost(stage);
         if (host.current) {
           observer.observe(host.current);
         }
@@ -92,8 +100,12 @@ function SlideCanvas({ snapshot, page, selectable }: { snapshot: Snapshot; page:
       abort.abort();
       observer.disconnect();
     };
-  }, [snapshot, page, selectable]);
-  return <>{error && <p role="alert">Preview unavailable: {error}</p>}<div ref={host} className="canvas-host" /></>;
+  }, [snapshot, page, selected]);
+  return <>{error && <p role="alert">Preview unavailable: {error}</p>}<div ref={host} className={`canvas-host ${mode}-mode`} onClick={event => {
+    if (mode === 'objects') {
+      onSelect((event.target as HTMLElement).closest<HTMLElement>('[data-object-id]')?.dataset.objectId ?? null);
+    }
+  }} />{stageHost && mode === 'objects' && image && !image.grouped && image.width > 0 && image.height > 0 && createPortal(<ImageTransform key={image.id} image={image} slideWidth={snapshot.deck.width} slideHeight={snapshot.deck.height} busy={busy} onSave={bounds => onTransform(image.id, bounds)} />, stageHost)}</>;
 }
 
 function MarkdownView({ snapshot, name, onClose }: { snapshot: Snapshot; name: string; onClose: () => void }) {
@@ -144,6 +156,8 @@ function App({ id, initial, onOpen, onStatus, active, headerHost }: PageProps) {
   const name = initial?.name ?? '';
   const [saved, setSaved] = useState<Blob | undefined>(initial?.snapshot.bytes);
   const [page, setPage] = useState(1);
+  const [addingImage, setAddingImage] = useState(false);
+  const [mode, setMode] = useState<'text' | 'objects'>('text');
   const [selected, setSelected] = useState<string | null>(null);
   const [draft, setDraft] = useState('');
   const [busy, setBusy] = useState(false);
@@ -154,9 +168,9 @@ function App({ id, initial, onOpen, onStatus, active, headerHost }: PageProps) {
   const [future, setFuture] = useState<Snapshot[]>([]);
   const [markdown, setMarkdown] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
-  const [selectable, setSelectable] = useState(true);
   const fileInput = useRef<HTMLInputElement>(null);
   const slide = current?.info.slides[page - 1];
+  const selectedImage = slide?.images?.find(item => item.id === selected);
   const object = slide?.textObjects.find(item => item.id === selected);
   useEffect(() => {
     setSelected(null);
@@ -164,8 +178,8 @@ function App({ id, initial, onOpen, onStatus, active, headerHost }: PageProps) {
   }, [page, current]);
 
   useEffect(() => {
-    onStatus(id, !!current && current.bytes !== saved, busy || markdown || confirmDelete);
-  }, [id, current, saved, busy, markdown, confirmDelete, onStatus]);
+    onStatus(id, !!current && current.bytes !== saved, busy || markdown || confirmDelete || addingImage);
+  }, [id, current, saved, busy, markdown, confirmDelete, addingImage, onStatus]);
 
   async function open(files: File[]) {
     if (!files.length || busy) {
@@ -191,7 +205,7 @@ function App({ id, initial, onOpen, onStatus, active, headerHost }: PageProps) {
   }
   async function edit(request: object, nextPage = page) {
     if (!current || busy) {
-      return;
+      return false;
     }
     setBusy(true);
     setError('');
@@ -202,8 +216,10 @@ function App({ id, initial, onOpen, onStatus, active, headerHost }: PageProps) {
       setFuture([]);
       setCurrent(updated);
       setPage(Math.min(nextPage, updated.info.slides.length));
+      return true;
     } catch (cause) {
       setError((cause as Error).message);
+      return false;
     } finally {
       setBusy(false);
     }
@@ -221,8 +237,8 @@ function App({ id, initial, onOpen, onStatus, active, headerHost }: PageProps) {
     {error && <div role="alert" className="error-banner">{error}<button aria-label="Dismiss error" onClick={() => setError('')}><X size={16} /></button></div>}
     {busy && <p role="status" className="status">Processing presentation...</p>}
     {!current ? <main className="welcome"><div className={`dropzone ${dragging ? 'dragging' : ''}`} onDragOver={event => { event.preventDefault(); setDragging(true); }} onDragLeave={() => setDragging(false)} onDrop={event => { event.preventDefault(); setDragging(false); void open(Array.from(event.dataTransfer.files)); }}><Presentation size={48} /><h1>Your slides, ready to work with</h1><p>Open a presentation to preview slides, edit text, organize pages, and extract Markdown.</p><button className="primary" disabled={busy} onClick={() => fileInput.current?.click()}>Choose presentation</button><small>Drop a .pptx here · Up to 50 MB</small></div></main> : <>
-      <div className="toolbar document-bar"><strong className="filename" title={name}>{name}</strong><span>{current.info.slides.length} slides</span><div className="toolbar-controls">
-        <div className="mode-switch"><button aria-pressed={!selectable} onClick={() => setSelectable(false)}>Canvas</button><button aria-pressed={selectable} onClick={() => setSelectable(true)}>Selectable text</button></div>
+      <div className="toolbar document-bar"><strong className="filename" title={name}>{name}</strong><span>{current.info.slides.length} slides</span><div className="toolbar-controls"><div className="interaction-mode" role="group" aria-label="Interaction mode">{([['objects', 'Select objects', MousePointer2], ['text', 'Select text', TextCursor]] as const).map(([value, label, Icon]) => <button key={value} title={label} aria-label={label} aria-pressed={mode === value} onClick={() => { setMode(value); window.getSelection()?.removeAllRanges(); }}><Icon size={18} /></button>)}</div>
+        <button disabled={busy} onClick={() => setAddingImage(true)}><ImagePlus size={16} />Add image</button>
         <ToolbarMenu label="Slides" icon={Files}><h3>Current slide</h3><button disabled={busy || page <= 1} onClick={() => move(page, page - 1)}><ArrowUp size={16} />Move earlier</button><button disabled={busy || page >= current.info.slides.length} onClick={() => move(page, page + 1)}><ArrowDown size={16} />Move later</button><hr /><button className="delete-page-action" disabled={busy || current.info.slides.length <= 1} onClick={() => setConfirmDelete(true)}><Trash2 size={16} />Delete slide</button></ToolbarMenu>
         <ToolbarMenu label="Document" icon={FileText}><button disabled={busy} onClick={() => setMarkdown(true)}><FileText size={16} />View Markdown</button></ToolbarMenu>
         <button className="toolbar-primary-download" disabled={busy} onClick={() => { download(current.bytes, name); setSaved(current.bytes); }}><Download size={16} />Download PPTX</button>
@@ -234,12 +250,17 @@ function App({ id, initial, onOpen, onStatus, active, headerHost }: PageProps) {
           <SlideThumbnail deck={current.deck} page={item.number} />
           <span className="slide-caption"><span className="slide-number">{item.number}</span><span className="slide-title">{item.title || 'Untitled slide'}</span></span>
         </button></li>)}</ol></aside>
-      <section className="slide-workspace" aria-label="Slide workspace"><div className="canvas-toolbar"><span>Slide {page} of {current.info.slides.length}</span></div>{slide && <SlideCanvas snapshot={current} page={page} selectable={selectable} />}<details className="render-notes"><summary>Preview limitations</summary>{current.info.warnings.map(note => <p key={note}>{note}</p>)}</details></section>
-      <aside className="inspector"><h2>Inspector</h2><p className="help">Select a text object to edit its content.</p><div className="object-list">{slide?.textObjects.map(item => <button key={item.id} aria-pressed={selected === item.id} disabled={busy} onClick={() => { setSelected(item.id); setDraft(item.text); }}><FileText size={16} /><span>{item.text || item.name}</span></button>)}</div>{object && <div className="text-editor"><label>Text<textarea aria-label="Text" maxLength={4000} value={draft} onChange={event => setDraft(event.target.value)} disabled={busy} rows={8} /></label><p className="help">Replacement keeps the first run style in each paragraph. Mixed formatting within a paragraph is simplified.</p><button className="primary" disabled={busy || draft === object.text} onClick={() => void edit({ kind: 'text', slideNumber: page, objectId: object.id, text: draft })}><Save size={16} />Save text</button></div>}{slide?.notes && <details><summary>Speaker notes</summary><p className="notes">{slide.notes}</p></details>}</aside></main>
+      <section className="slide-workspace" aria-label="Slide workspace"><div className="canvas-toolbar"><span>Slide {page} of {current.info.slides.length}</span></div>{slide && <SlideCanvas busy={busy} onTransform={(id, bounds) => edit({ kind: 'resize-image', slideNumber: page, objectId: id, ...bounds })} snapshot={current} page={page} mode={mode} selected={selected} onSelect={id => {
+        const item = slide.textObjects.find(candidate => candidate.id === id) ?? slide.images?.find(candidate => candidate.id === id);
+        setSelected(item?.id ?? null);
+        setDraft(item && 'text' in item ? item.text : '');
+      }} />}<details className="render-notes"><summary>Preview limitations</summary>{current.info.warnings.map(note => <p key={note}>{note}</p>)}</details></section>
+      <aside className="inspector"><h2>Inspector</h2><p className="help">Use Select objects to click text on the slide and edit it, or choose an object below. Images support replacement, download, resizing and deletion.</p><div className="object-list">{slide?.textObjects.map(item => <button key={item.id} aria-pressed={selected === item.id} disabled={busy} onClick={() => { setSelected(item.id); setDraft(item.text); }}><FileText size={16} /><span>{item.text || item.name}</span></button>)}{slide?.images?.map(item => <button key={item.id} aria-pressed={selected === item.id} disabled={busy} onClick={() => { setMode('objects'); setSelected(item.id); }}><ImageIcon size={16} /><span>{item.name}</span></button>)}</div>{selectedImage && current && <ImageEditor key={selectedImage.id} image={selectedImage} busy={busy} onEdit={request => edit({ ...request, slideNumber: page, objectId: selectedImage.id })} onDownload={async () => download(await current.deck.image(selectedImage.partName), selectedImage.partName.split('/').pop() ?? 'image')} />}{object && <div className="text-editor"><label>Text<textarea aria-label="Text" maxLength={4000} value={draft} onChange={event => setDraft(event.target.value)} disabled={busy} rows={8} /></label><p className="help">Replacement keeps the first run style in each paragraph. Mixed formatting within a paragraph is simplified.</p><button className="primary" disabled={busy || draft === object.text} onClick={() => void edit({ kind: 'text', slideNumber: page, objectId: object.id, text: draft })}><Save size={16} />Save text</button></div>}{slide?.notes && <details><summary>Speaker notes</summary><p className="notes">{slide.notes}</p></details>}</aside></main>
     </>}
     {current && <div className="page-navigation-bar" role="toolbar" aria-label="Slide navigation"><button aria-label="Previous slide" disabled={busy || page === 1} onClick={() => setPage(page - 1)}><ChevronLeft size={18} /></button><label>Slide <select aria-label="Slide" disabled={busy} value={page} onChange={event => setPage(Number(event.target.value))}>{current.info.slides.map(item => <option key={item.id} value={item.number}>{item.number}</option>)}</select> / {current.info.slides.length}</label><button aria-label="Next slide" disabled={busy || page === current.info.slides.length} onClick={() => setPage(page + 1)}><ChevronRight size={18} /></button></div>}
     <footer>Experimental browser preview<span>Edits stay in this session. Download to keep your changes.</span></footer>
     {markdown && current && <MarkdownView snapshot={current} name={name} onClose={() => setMarkdown(false)} />}
+    {addingImage && <ImageSourceDialog initialBounds={{ x: 36, y: 36, width: 180, height: 120 }} onClose={() => setAddingImage(false)} onApply={request => edit({ ...request, kind: 'add-image', slideNumber: page })} />}
     {confirmDelete && <Modal labelledBy="delete-title" className="confirm-modal" onClose={() => setConfirmDelete(false)}><div className="modal-heading"><h2 id="delete-title">Delete slide {page}?</h2><button aria-label="Cancel deletion" onClick={() => setConfirmDelete(false)}><X size={18} /></button></div><p>The slide will be removed from the presentation sequence. Retained package parts may still contain its content; this is not redaction.</p><div className="modal-actions"><button onClick={() => setConfirmDelete(false)}>Cancel</button><button className="danger" onClick={() => { setConfirmDelete(false); void edit({ kind: 'delete-slide', slideNumber: page }); }}>Delete slide</button></div></Modal>}
   </div>;
 }

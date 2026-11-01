@@ -55,6 +55,13 @@ export async function createPptxPreview(bytes: ArrayBuffer) {
   }
   return {
     width, height, count,
+    async image(part: string) {
+      const entry = zip.file(part);
+      if (!entry) {
+        throw new Error('Image is missing from the presentation.');
+      }
+      return entry.async('blob');
+    },
     async render(canvas: HTMLCanvasElement, page: number, signal?: AbortSignal, textLayer?: HTMLDivElement) {
       if (page < 1 || page > count) {
         throw new Error('Invalid PowerPoint preview slide.');
@@ -69,6 +76,18 @@ export async function createPptxPreview(bytes: ArrayBuffer) {
         }
       }
       const slide = { zip, xml: await xml(zip, part), width, height, images, notes: [] };
+      for (const picture of descendants(slide.xml, 'pic')) {
+        const id = child(child(picture, 'nvPicPr'), 'cNvPr')?.getAttribute('id');
+        if (id) {
+          picture.setAttribute('data-object-id', id);
+        }
+      }
+      for (const shape of descendants(slide.xml, 'sp')) {
+        const id = child(child(shape, 'nvSpPr'), 'cNvPr')?.getAttribute('id');
+        if (id) {
+          child(shape, 'txBody')?.setAttribute('data-object-id', id);
+        }
+      }
       const loadRelated = async (source: string, kind: string) => {
         if (!zip.file(relPath(source))) {
           return null;
@@ -543,6 +562,10 @@ function text(context: CanvasRenderingContext2D, body: Element, width: number, h
       if (textLayer && fragment.value) {
         const span = document.createElement('span');
         span.textContent = fragment.value;
+        const objectId = body.getAttribute('data-object-id');
+        if (objectId) {
+          span.dataset.objectId = objectId;
+        }
         span.style.font = context.font;
         const ascent = context.measureText(fragment.value).fontBoundingBoxAscent ?? fragment.size * .9;
         span.style.lineHeight = `${fragment.size * 1.2}px`;
@@ -619,6 +642,17 @@ async function renderSlide(canvas: HTMLCanvasElement, slide: Slide, signal?: Abo
           context.scale(number(frame, 'flipH') ? -1 : 1, number(frame, 'flipV') ? -1 : 1);
           context.translate(-width / 2, -height / 2);
           if (object.localName === 'pic') {
+            const objectId = object.getAttribute('data-object-id');
+            if (textLayer && objectId) {
+              const hit = document.createElement('span');
+              hit.dataset.objectId = objectId;
+              hit.dataset.kind = 'image';
+              hit.style.width = `${width}px`;
+              hit.style.height = `${height}px`;
+              const matrix = context.getTransform();
+              hit.style.transform = `matrix(${matrix.a},${matrix.b},${matrix.c},${matrix.d},${matrix.e},${matrix.f})`;
+              textLayer.append(hit);
+            }
             const blip = descendants(object, 'blip')[0];
             const id = blip.getAttributeNS('http://schemas.openxmlformats.org/officeDocument/2006/relationships', 'embed') ?? '';
             const path = slide.images.get(id);

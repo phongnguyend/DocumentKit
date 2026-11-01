@@ -130,3 +130,31 @@ footer { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 12
 @media (max-width: 1000px) { .workspace { overflow: auto; align-content: start; } .slide-workspace { height: clamp(300px, 60dvh, 640px); } .inspector { overflow: visible; } }
 
 .canvas-toolbar { flex-shrink: 0; }
+
+.interaction-mode { display: inline-flex; align-items: center; padding: 3px; border: 1px solid #d6deec; border-radius: 7px; background: #f7f9fc; gap: 2px; }
+.interaction-mode button { border-color: transparent; background: transparent; }
+.interaction-mode button[aria-pressed="true"] { color: #174fc4; background: #e5edff; border-color: #9ab7ff; }
+.objects-mode .text-layer span { user-select: none; pointer-events: none; }
+.objects-mode .text-layer span[data-object-id] { pointer-events: auto; cursor: pointer; }
+.objects-mode .text-layer span[data-object-id]:hover, .objects-mode .selected-object { outline: 1px solid #4279e8; background: #4279e822; }
+
+.text-mode .text-layer span[data-kind="image"] { pointer-events: none; }
+.image-editor { display: grid; gap: 12px; }
+.image-upload { position: relative; padding: 18px; border: 1px dashed #9bb5df; border-radius: 8px; text-align: center; justify-items: center; background: #f7f9fc; cursor: pointer; }
+.image-upload input { position: absolute; inset: 0; opacity: 0; width: 100%; cursor: pointer; }
+.image-upload:focus-within { outline: 2px solid #4279e8; }
+.image-bounds { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.image-bounds input { min-width: 0; width: 100%; padding: 8px; border: 1px solid #cdd8e7; border-radius: 6px; }
+
+.image-source-dialog { width: 520px; }
+.image-source-controls { border: 0; padding: 0; margin: 16px 0; min-width: 0; }
+.image-source-controls label { display: grid; gap: 6px; font-size: 12px; }
+.image-source-dialog .image-bounds { margin-top: 16px; }
+.image-source-dialog .control-help { font-size: 12px; color: #6c7c92; }
+.drawing-dialog header { padding: 0 0 12px; }
+
+.image-transform { position: absolute; border: 2px solid #4279e8; background: #4279e80a; touch-action: none; user-select: none; }
+.image-resize-handle { position: absolute; width: 10px; height: 10px; min-width: 0; padding: 0; background: white; border: 1px solid #285fd5; border-radius: 2px; transform: translate(-50%, -50%); touch-action: none; }
+.handle-nw { left: 0; top: 0; cursor: nwse-resize; } .handle-n { left: 50%; top: 0; cursor: ns-resize; } .handle-ne { left: 100%; top: 0; cursor: nesw-resize; }
+.handle-e { left: 100%; top: 50%; cursor: ew-resize; } .handle-se { left: 100%; top: 100%; cursor: nwse-resize; } .handle-s { left: 50%; top: 100%; cursor: ns-resize; }
+.handle-sw { left: 0; top: 100%; cursor: nesw-resize; } .handle-w { left: 0; top: 50%; cursor: ew-resize; }

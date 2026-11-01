@@ -35,6 +35,11 @@ public sealed class PptxObjectDocument
 
 public sealed record PptxTextObject(string Id, string Name, string Text);
 
-public sealed record PptxSlide(int Number, string Id, string PartName, string Title, List<PptxTextObject> TextObjects, int PictureCount, string Notes);
+public sealed record PptxSlide(int Number, string Id, string PartName, string Title, List<PptxTextObject> TextObjects, int PictureCount, string Notes)
+{
+    public List<PptxImageObject> Images { get; init; } = [];
+}
 
 public sealed record PptxInspection(double Width, double Height, List<PptxSlide> Slides, List<string> Warnings);
+
+public sealed record PptxImageObject(string Id, string Name, string PartName, double X, double Y, double Width, double Height, bool Grouped, double Rotation = 0);

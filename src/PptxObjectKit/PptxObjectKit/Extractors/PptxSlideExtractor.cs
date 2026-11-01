@@ -52,6 +52,24 @@ public static class PptxSlideExtractor
             slides.Add(new(slides.Count + 1, (string?)id.Attribute("id") ?? "", path,
                 string.IsNullOrWhiteSpace(titleText) ? $"Slide {slides.Count + 1}" : titleText.Split('\n')[0], objects, xml.Descendants(P + "pic").Count(), notes));
         }
+        foreach (var slide in slides)
+        {
+            var xml = document.Xml(slide.PartName);
+            foreach (var picture in xml.Descendants(P + "pic"))
+            {
+                var properties = picture.Element(P + "nvPicPr")?.Element(P + "cNvPr");
+                var id = (string?)properties?.Attribute("id");
+                var embed = (string?)picture.Element(P + "blipFill")?.Element(A + "blip")?.Attribute(R + "embed");
+                var relationship = graph.Relationships(slide.PartName).FirstOrDefault(item => (string?)item.Attribute("Id") == embed && (string?)item.Attribute("TargetMode") != "External");
+                if (id is null || relationship is null)
+                {
+                    continue;
+                }
+                var frame = picture.Element(P + "spPr")?.Element(A + "xfrm");
+                double Value(string element, string attribute) => ((double?)frame?.Element(A + element)?.Attribute(attribute) ?? 0) / 12700;
+                slide.Images.Add(new(id, (string?)properties?.Attribute("name") ?? "Image", Target(slide.PartName, relationship), Value("off", "x"), Value("off", "y"), Value("ext", "cx"), Value("ext", "cy"), picture.Ancestors(P + "grpSp").Any(), ((double?)frame?.Attribute("rot") ?? 0) / 60000));
+            }
+        }
         if (document.PartNames.Any(name => name.StartsWith("_xmlsignatures/", StringComparison.Ordinal)))
         {
             warnings.Add("This presentation is signed. Editing signed packages is disabled.");
