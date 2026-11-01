@@ -1,0 +1,7 @@
+<Solution>
+  <Project Path="PptxObjectKit/PptxObjectKit.csproj" />
+  <Project Path="PptxObjectKit.Application/PptxObjectKit.Application.csproj" />
+  <Project Path="PptxObjectKit.Cli/PptxObjectKit.Cli.csproj" />
+  <Project Path="PptxObjectKit.Playground.Api/PptxObjectKit.Playground.Api.csproj" />
+  <Project Path="PptxObjectKit.Tests/PptxObjectKit.Tests.csproj" />
+</Solution>

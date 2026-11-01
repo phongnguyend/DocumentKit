@@ -1,0 +1,26 @@
+{
+  "name": "pptxobjectkit-playground",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite --host localhost",
+    "build": "tsc -b && vite build",
+    "test:e2e": "playwright test"
+  },
+  "dependencies": {
+    "dompurify": "^3.4.17",
+    "jszip": "^3.10.2",
+    "lucide-react": "^1.61.0",
+    "marked": "^18.1.1",
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.64.1",
+    "@types/react": "^19.2.0",
+    "@types/react-dom": "^19.2.0",
+    "typescript": "~5.9.3",
+    "vite": "^7.1.7"
+  }
+}

@@ -1,0 +1,11 @@
+name: pptxobjectkit
+services:
+  api:
+    build:
+      context: .
+      dockerfile: PptxObjectKit.Playground.Api/Dockerfile
+    ports: ["5090:8080"]
+  ui:
+    build: ./PptxObjectKit.Playground.Ui
+    ports: ["8124:80"]
+    depends_on: [api]

@@ -1,5 +1,6 @@
 # Practical.Pdf
 
+- [PptxObjectKit](src/PptxObjectKit/README.md): inspect, edit, preview and manage PowerPoint presentations, with Markdown extraction.
 - [PdfObjectKit](src/PdfObjectKit/README.md): serialize the PDF object graph with Base64 streams and binary strings, then rebuild a PDF from JSON.
 - [HtmlToPdf](src/HtmlToPdf/README.md): convert HTML files and webpage URLs using Chrome, Playwright, or PuppeteerSharp.
 - [ExcelToPdf](src/ExcelToPdf/README.md): convert Excel workbooks using LibreOffice.
