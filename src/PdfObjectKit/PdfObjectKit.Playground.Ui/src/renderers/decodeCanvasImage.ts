@@ -1,4 +1,4 @@
-import type { Command } from './nativeRenderer';
+import type { Command } from './pdfRenderer';
 
 export async function decodeCanvasImage(command: Command): Promise<CanvasImageSource> {
   let image: CanvasImageSource;

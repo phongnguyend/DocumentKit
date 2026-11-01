@@ -1,5 +1,5 @@
 import { decodeCanvasImage } from './renderers/decodeCanvasImage';
-import type { Command } from './renderers/nativeRenderer';
+import type { Command } from './renderers/pdfRenderer';
 
 export async function extractImage(pdf: Blob, page: number, imageNumber: number, signal?: AbortSignal) {
   const response = await fetch(`/api/documents/image?page=${page}&image=${imageNumber}`, {

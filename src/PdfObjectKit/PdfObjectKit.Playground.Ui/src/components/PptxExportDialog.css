@@ -1,0 +1,123 @@
+.pptx-options {
+  min-width: 0;
+  margin: 12px 0;
+  padding: 12px;
+  border: 1px solid var(--theme-border, #dbe3ef);
+  border-radius: 10px;
+}
+.pptx-options legend {
+  padding: 0 6px;
+  font-size: 13px;
+  font-weight: 600;
+}
+.pptx-option-fields {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+.pptx-option-fields label {
+  display: grid;
+  grid-template-rows: auto 40px auto;
+  align-content: start;
+  gap: 6px;
+  min-width: 0;
+  font-size: 13px;
+  font-weight: 600;
+}
+.pptx-option-fields select {
+  width: 100%;
+  height: 40px;
+  min-height: 40px;
+  box-sizing: border-box;
+  font-weight: 400;
+}
+.pptx-options small {
+  display: block;
+  color: var(--theme-muted, #64748b);
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 1.5;
+}
+.pptx-content-choices {
+  display: grid;
+  gap: 8px;
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--theme-border, #e5eaf2);
+}
+.pptx-content-choice {
+  display: grid;
+  grid-template-columns: 20px minmax(0, 1fr) 18px;
+  align-items: center;
+  gap: 12px;
+  padding: 9px 10px;
+  border: 1px solid var(--theme-border, #dbe3ef);
+  border-radius: 8px;
+  cursor: pointer;
+}
+.pptx-content-choice:has(input:checked) {
+  background: #537ef70a;
+  border-color: #537ef777;
+}
+.pptx-content-choice:hover {
+  background: #537ef714;
+}
+.pptx-content-choice:focus-within {
+  outline: 2px solid #537ef7;
+  outline-offset: 2px;
+}
+.pptx-content-choice > svg {
+  color: var(--theme-accent, #386cdc);
+}
+.pptx-content-choice strong {
+  display: block;
+  font-size: 13px;
+  font-weight: 600;
+  margin-bottom: 2px;
+}
+.pptx-content-choice input {
+  width: 18px;
+  height: 18px;
+  margin: 0;
+  accent-color: #386cdc;
+}
+.pptx-options:disabled .pptx-content-choice {
+  cursor: default;
+  opacity: .6;
+}
+
+.pptx-export-dialog .assembly-document {
+  margin: 8px 0 12px;
+}
+.pptx-export-intro {
+  margin: 0 0 12px;
+  font-size: 13px;
+  line-height: 1.5;
+}
+.pptx-export-help {
+  margin: 10px 0;
+  font-size: 12px;
+  color: var(--theme-muted, #64748b);
+}
+.pptx-export-help summary {
+  cursor: pointer;
+}
+.pptx-export-dialog .compression-result {
+  padding: 12px;
+  margin: 12px 0 0;
+  font-size: 13px;
+}
+.pptx-export-dialog .compression-result strong {
+  font-size: 16px;
+}
+.pptx-export-dialog .compression-result p {
+  margin-top: 6px;
+}
+.pptx-export-dialog .compression-result details {
+  margin-top: 8px;
+}
+@media (max-width: 420px) {
+  .pptx-option-fields {
+    grid-template-columns: 1fr;
+  }
+}

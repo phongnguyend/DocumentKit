@@ -46,15 +46,53 @@ test('export editable PowerPoint, change options, download and retain source PDF
   await page.getByLabel('Open PDF', { exact: true }).setInputFiles(file);
   await (await toolbarAction(page, 'Export PowerPoint')).click();
   const dialog = page.getByRole('dialog', { name: 'Export editable PowerPoint' });
-  await dialog.getByRole('button', { name: 'Convert to PowerPoint' }).click();
+  await dialog.getByRole('button', { name: 'Preview', exact: true }).click();
   const result = dialog.getByRole('region', { name: 'PowerPoint export result' });
   await expect(result).toContainText('2 slides ready');
   await expect(result).toContainText('2 editable text boxes');
+  const preview = dialog.getByRole('region', { name: 'PowerPoint preview' });
+  const slide = preview.getByRole('img', { name: 'PowerPoint slide 1' });
+  await expect(slide).toBeVisible();
+  await preview.getByRole('button', { name: 'Selectable text', exact: true }).click();
+  const selectable = preview.locator('.pptx-preview-text');
+  await expect(selectable).toContainText('Editable first slide');
+  await selectable.locator('span').first().dblclick();
+  await expect.poll(() => page.evaluate(() => window.getSelection()?.toString())).toBe('Editable');
+  const layerBounds = await selectable.boundingBox();
+  const canvasBounds = await slide.boundingBox();
+  expect(Math.abs(layerBounds.width - canvasBounds.width)).toBeLessThan(1);
+  expect(Math.abs(layerBounds.height - canvasBounds.height)).toBeLessThan(1);
+  await preview.getByRole('button', { name: 'Canvas', exact: true }).click();
+  await expect(selectable).toHaveCount(0);
+
+  expect(await slide.evaluate(canvas => {
+    const pixels = canvas.getContext('2d').getImageData(0, 0, canvas.width, canvas.height).data;
+    let ink = 0;
+    for (let i = 0; i < pixels.length; i += 4) {
+      if (pixels[i] < 100 && pixels[i + 1] < 100 && pixels[i + 2] < 100) {
+        ink++;
+      }
+    }
+    return ink;
+  })).toBeGreaterThan(50);
+  await preview.getByRole('button', { name: 'Next preview slide' }).click();
+  await expect(preview.getByRole('img', { name: 'PowerPoint slide 2' })).toBeVisible();
+  await preview.getByRole('button', { name: 'Previous preview slide' }).click();
+  await expect(slide).toBeVisible();
+
+  await dialog.getByRole('button', { name: 'Hide preview' }).click();
+  await page.setViewportSize({ width: 1280, height: 720 });
+  await expect.poll(() => dialog.locator('.pptx-export-body').evaluate(element => element.scrollHeight - element.clientHeight)).toBeLessThanOrEqual(1);
+  await expect.poll(() => dialog.evaluate(element => element.scrollHeight - element.clientHeight)).toBeLessThanOrEqual(1);
+  await dialog.screenshot({ path: testInfo.outputPath('pptx-settings-720.png') });
+  await dialog.getByRole('button', { name: 'Preview', exact: true }).click();
+  await expect(preview.getByRole('img', { name: 'PowerPoint slide 1' })).toBeVisible();
   await dialog.screenshot({ path: testInfo.outputPath('pptx-export.png') });
   await dialog.getByText('Conversion notes').click();
   await expect(result).toContainText('Fonts are referenced by name');
   await dialog.getByLabel('Pages', { exact: true }).selectOption('current');
   await expect(result).toHaveCount(0);
+  await expect(preview).toHaveCount(0);
   await dialog.getByLabel('Slide size').selectOption('wide');
   await dialog.getByLabel('Include pictures').uncheck();
   await dialog.getByLabel('Include vector shapes').uncheck();
@@ -64,6 +102,9 @@ test('export editable PowerPoint, change options, download and retain source PDF
   expect(data.slideCount).toBe(1);
   expect(data.textBoxCount).toBe(1);
   await expect(result).toContainText('1 slide ready');
+  await dialog.getByRole('button', { name: 'Preview', exact: true }).click();
+  await expect(preview.getByRole('img', { name: 'PowerPoint slide 1' })).toBeVisible();
+  await expect(preview.getByRole('button', { name: 'Next preview slide' })).toBeDisabled();
   const downloadPromise = page.waitForEvent('download');
   await dialog.getByRole('button', { name: 'Download PPTX' }).click();
   const download = await downloadPromise;

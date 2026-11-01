@@ -1,0 +1,127 @@
+.pptx-preview {
+  margin: 16px 0;
+  padding: 12px;
+  border: 1px solid var(--border, #d4ddec);
+  border-radius: 10px;
+}
+.pptx-preview-toolbar,
+.pptx-preview-toolbar > div {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.pptx-preview-toolbar {
+  justify-content: space-between;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
+}
+.pptx-preview-canvas {
+  display: flex;
+  justify-content: center;
+  overflow: auto;
+  max-height: 55vh;
+  background: #667085;
+  border-radius: 4px;
+}
+.pptx-preview-canvas canvas {
+  display: block;
+  max-width: 100%;
+  max-height: 55vh;
+  width: auto;
+  height: auto;
+  object-fit: contain;
+}
+
+.pptx-preview-stage {
+  position: relative;
+  min-width: 0;
+  max-width: 100%;
+}
+.pptx-preview-text {
+  position: absolute;
+  inset: 0 auto auto 0;
+  transform-origin: 0 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+.pptx-preview-text span {
+  position: absolute;
+  left: 0;
+  top: 0;
+  transform-origin: 0 0;
+  white-space: pre;
+  color: transparent;
+  user-select: text;
+  cursor: text;
+  pointer-events: auto;
+}
+.pptx-preview-text span::selection {
+  background: #3b82f655;
+  color: transparent;
+}
+.pptx-preview-modes {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 12px;
+}
+.pptx-preview-modes button[aria-pressed="true"] {
+  border-color: #537ef7;
+  background: #537ef722;
+}
+
+.pptx-export-dialog {
+  display: flex;
+  flex-direction: column;
+  max-height: calc(100dvh - 32px);
+  box-sizing: border-box;
+  overflow: hidden;
+}
+.pptx-export-dialog > .assembly-heading,
+.pptx-export-dialog > .assembly-actions {
+  flex-shrink: 0;
+}
+.pptx-export-body {
+  min-height: 0;
+  overflow: auto;
+}
+.pptx-export-dialog > .assembly-actions {
+  margin-top: 16px;
+  padding-top: 12px;
+  border-top: 1px solid var(--theme-border, #dbe3ef);
+}
+@media (min-width: 900px) {
+  .page-assembly-dialog.pptx-preview-open {
+    width: min(1100px, calc(100vw - 48px));
+    height: calc(100dvh - 48px);
+  }
+  .pptx-preview-open .pptx-export-body {
+    display: grid;
+    grid-template-columns: minmax(300px, 2fr) minmax(0, 3fr);
+    gap: 20px;
+    flex: 1;
+    overflow: hidden;
+    padding-top: 16px;
+  }
+  .pptx-preview-open .pptx-export-settings {
+    overflow: auto;
+    min-height: 0;
+    padding-right: 10px;
+    scrollbar-gutter: stable;
+  }
+  .pptx-preview-open .pptx-preview {
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    margin: 0;
+  }
+  .pptx-preview-open .pptx-preview-canvas {
+    flex: 1;
+    min-height: 0;
+    max-height: none;
+    align-items: center;
+    overflow: hidden;
+  }
+  .pptx-preview-open .pptx-preview-stage canvas {
+    max-height: none;
+  }
+}

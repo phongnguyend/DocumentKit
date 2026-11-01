@@ -21,7 +21,7 @@ import { useRectangleSelection } from '../components/useRectangleSelection';
 import { PageAssemblyDialog } from '../components/PageAssemblyDialog';
 import type { DocumentView } from './PlaygroundTabs';
 import { downloadImage } from '../downloadImage';
-import { renderNative } from '../renderers/nativeRenderer';
+import { renderNative } from '../renderers/pdfRenderer';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { Presentation, Upload, Hand, TextCursor, MousePointer2, Download, FileText, ChevronLeft, ChevronRight, X, FolderOpen, Scissors, Files, Trash2, RotateCcw, RotateCw, Copy, LockKeyhole, Stamp, FilePenLine, FileDown, Search, LayoutGrid, Layers, FilePlus2, ScanLine, Image as ImageIcon } from 'lucide-react';
 import { getDocument, GlobalWorkerOptions, type PDFDocumentProxy, type PageViewport, type RenderTask } from 'pdfjs-dist';
