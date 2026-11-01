@@ -152,7 +152,7 @@ Reference `PdfObjectKit/PdfObjectKit.csproj`:
 | `PdfConverter.ToJson(document)` | Serialize an object graph to JSON. |
 | `PdfConverter.FromJson(json)` | Deserialize and validate an object graph. |
 
-These replace the previous combined object converter. Structural validation is shared internally by the reader, writer, converter, and editor APIs. The object-graph JSON schema is unchanged. The CLI supports `to-json`, `to-pdf`, `to-markdown`, and the [document-operation commands](PdfObjectKit.Cli/README.md); the legacy text-only conversion and original-file restoration commands have been removed.
+These replace the previous combined object converter. Structural validation is shared internally by the reader, writer, converter, and editor APIs. The object-graph JSON schema is unchanged. The CLI supports `to-json`, `to-pdf`, `to-markdown`, `to-pptx`, and the [document-operation commands](PdfObjectKit.Cli/README.md); the legacy text-only conversion and original-file restoration commands have been removed.
 
 ```csharp
 using PdfObjectKit.Readers;
@@ -392,6 +392,45 @@ Top-level fields: `format: "pdf-object-graph"`, `schemaVersion: 1`, `pdfVersion`
 | `stream` | `entries` and `base64`, the original encoded stream bytes |
 
 Literal and hexadecimal strings both become byte strings, avoiding assumptions about text encoding. Name escapes are regenerated. Compression filters and decode parameters are retained; streams are not recompressed. Stream lengths are recalculated from the Base64 data.
+
+## Editable PowerPoint export
+
+PPTX regression tests run independently with `dotnet run --project src/PdfObjectKit/PdfObjectKit.Extensions.Pptx.Tests --configuration Release`. Core regressions remain in `PdfObjectKit.Tests` without an extension dependency.
+
+Install/reference **PdfObjectKit.Extensions.Pptx** to use `PdfPptxConverter`, `PdfPptxOptions`, and `PdfPptxResult`. These types keep their existing namespaces but now live in the extension assembly. Only the extension depends on StbImageSharp; the core PdfObjectKit package remains dependency-free. The Playground API and CLI include the extension.
+
+Use **Document > Export PowerPoint** in the React Playground to convert the current saved PDF. Choose all pages or the current page, use the first selected page's dimensions or a widescreen slide size, and optionally omit pictures or vector shapes. Review the object counts and conversion notes, then download the `.pptx`. The PDF stays unchanged.
+
+```csharp
+using PdfObjectKit.Converters;
+using PdfObjectKit.Options;
+using PdfObjectKit.Readers;
+
+var pdf = PdfReader.Read(File.ReadAllBytes("input.pdf"));
+var result = PdfPptxConverter.Convert(pdf, new PdfPptxOptions
+{
+    PageNumbers = [1, 3],
+    SlideWidth = 960,
+    SlideHeight = 540
+});
+File.WriteAllBytes("slides.pptx", result.Bytes);
+foreach (var warning in result.Warnings)
+{
+    Console.WriteLine(warning);
+}
+```
+
+```sh
+dotnet run --project src/PdfObjectKit/PdfObjectKit.Cli -- to-pptx input.pdf slides.pptx
+```
+
+Each selected PDF page becomes a slide. Consecutive compatible text runs on the same line become one editable text box, retaining font, size and color as formatted runs. Grouping uses the UI selection baseline, column-gap and word-spacing thresholds, including on rotated pages; ordinary graphics-state saves/restores and repeated full-slide rectangular clips do not split lines. Separate lines, columns, overlapping text and runs separated by painted graphics or effective clipping boundaries remain separate. JPEG/decoded images become independent pictures, and supported painted paths become editable custom vector shapes. Paint order, colors, basic transparency, page rotation, crop-box coordinates and image/text transforms are used. Nested Form content and supported form-widget appearances become ordinary slide objects. Invisible OCR text is excluded. As a conservative exception, gradient glyph outlines immediately followed by transparent searchable text with matching bounds are reconstructed as editable text; adjacent reconstructed words share a text box. Unmatched outlines remain vector shapes. The exporter writes PresentationML directly without Office or a browser. Axial gradient fills remain editable on text and shapes; masked JPEG images are decoded using the managed StbImageSharp dependency, unblended from their matte, and embedded as transparent PNG pictures.
+
+Conversion is approximate: it does not reconstruct semantic PowerPoint tables, charts, paragraphs or form controls. Fonts are referenced by name, not embedded; font metrics and wrapping can differ. Arbitrary clipping, skew, non-axial shading, tiling patterns, blending and advanced graphics are not fully reproduced; conversion notes report unsupported or approximated content. Scans remain pictures unless visible OCR replacement text was applied first. Links, comments, tags and PDF metadata are not retained as PowerPoint features. This is not a redaction or sanitization operation: omitted PDF clipping can expose previously clipped content. Review slides before sharing.
+
+`PageNumbers` is an ordered list of distinct one-based pages; null exports all. `SlideWidth` and `SlideHeight` must be supplied together in points (72-4032); otherwise the first selected page determines the shared slide size, within those limits. Other pages are fitted proportionally and centered. `IncludeImages` and `IncludePaths` default to true. Limits are 100 selected pages, 50,000 objects per slide and 128 MB of uncompressed package parts; the Playground additionally limits the generated PPTX to 20 MB. Encrypted PDFs must be unlocked first. The library accepts a cancellation token and leaves the source graph unchanged.
+
+The API accepts the saved PDF bytes as `application/pdf` at `POST /api/documents/pptx?options=<URL-encoded JSON>` and returns `base64`, `slideCount`, `textBoxCount`, `imageCount`, `shapeCount`, and `warnings`.
 
 ## Markdown conversion (first version)
 
@@ -780,7 +819,7 @@ byte[] signedPdf = PdfSigner.Sign(document, "ApproverSignature", certificate, "A
 File.WriteAllBytes("signed.pdf", signedPdf);
 ```
 
-Signing creates a first approval signature using RSA (2048+ bits), SHA-256 and detached CMS (`adbe.pkcs7.detached`). The core library remains dependency-free; tests independently verify the CMS using .NET `SignedCms`, including tamper detection. The signer requires a writable unsigned signature field, a current certificate and an accessible RSA private key. It returns final bytes without modifying the source graph. **Save these exact bytes:** rebuilding or editing them invalidates the signature.
+Signing creates a first approval signature using RSA (2048+ bits), SHA-256 and detached CMS (`adbe.pkcs7.detached`). The signer uses no additional cryptography package; tests independently verify the CMS using .NET `SignedCms`, including tamper detection. The signer requires a writable unsigned signature field, a current certificate and an accessible RSA private key. It returns final bytes without modifying the source graph. **Save these exact bytes:** rebuilding or editing them invalidates the signature.
 
 The playground accepts a PFX/P12 up to 1 MB and its password for the current local API operation, loads the key ephemerally, and does not persist the certificate. Finish edits before choosing **Sign PDF**. The API rejects further editing of signed PDFs. `PdfFormField.IsSigned` means a signature value is present; it is not a trust or integrity verdict. Validate the output with a PDF signature validator. A self-signed test certificate will not automatically be trusted by viewers.
 

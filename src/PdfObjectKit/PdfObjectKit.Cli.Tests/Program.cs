@@ -75,6 +75,13 @@ try
     Check(PdfTextExtractor.Extract(Read("rebuilt.pdf"))[0].Text.Contains("Hello world"), "JSON round trip");
     await Run("to-markdown", At("input.pdf"), At("document.md"), "--options", Settings("markdown.json", new { includeImages = false, joinHyphenatedWords = true }));
     Check(File.ReadAllText(At("document.md")).Contains("Hello world"), "Markdown text");
+    await Run("to-pptx", At("input.pdf"), At("slides.pptx"), "--options", Settings("pptx.json", new { pageNumbers = new[] { 2 }, slideWidth = 960, slideHeight = 540 }));
+    using (var slides = System.IO.Compression.ZipFile.OpenRead(At("slides.pptx")))
+    {
+        using var slide = new StreamReader(slides.GetEntry("ppt/slides/slide1.xml")!.Open());
+        Check(slide.ReadToEnd().Contains("Second page"), "PPTX contains editable selected-page text");
+        Check(slides.GetEntry("ppt/slides/slide2.xml") is null, "PPTX page selection");
+    }
     await Run("search", At("input.pdf"), At("matches.json"), "--query", "world");
     using (var matches = JsonDocument.Parse(File.ReadAllText(At("matches.json"))))
     {

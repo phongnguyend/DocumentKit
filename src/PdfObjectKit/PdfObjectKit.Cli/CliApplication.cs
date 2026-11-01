@@ -91,6 +91,19 @@ public static class CliApplication
                     files.Add(destination, PdfWriter.Write(PdfConverter.FromJson(File.ReadAllText(input))));
                     break;
                 }
+                case "to-pptx":
+                {
+                    var settings = Settings<PdfPptxOptions>();
+                    options.Complete();
+                    var result = PdfPptxConverter.Convert(ReadPdf(input), settings, cancellation);
+                    files.Add(destination, result.Bytes);
+                    error.WriteLine($"{result.SlideCount} slides, {result.TextBoxCount} editable text boxes, {result.ImageCount} pictures, {result.ShapeCount} vector shapes.");
+                    foreach (var warning in result.Warnings)
+                    {
+                        error.WriteLine(warning);
+                    }
+                    break;
+                }
                 case "to-markdown":
                 {
                     var settings = Settings<MarkdownConversionOptions>();
@@ -388,6 +401,7 @@ public static class CliApplication
         to-json input.pdf output.json [--objects-only]
         to-pdf input.json output.pdf
         to-markdown input.pdf output.md [--options markdown.json]
+        to-pptx input.pdf output.pptx [--options pptx.json]
         inspect|metadata|forms|annotations|watermarks input.pdf output.json
         search input.pdf matches.json --query TEXT [--options search.json]
         edit input.pdf output.pdf --options edit.json

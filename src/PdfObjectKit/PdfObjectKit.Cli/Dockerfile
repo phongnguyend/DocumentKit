@@ -8,6 +8,7 @@ FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
 WORKDIR /src
 COPY Directory.Build.props ./
 COPY PdfObjectKit/PdfObjectKit.csproj PdfObjectKit/
+COPY PdfObjectKit.Extensions.Pptx/PdfObjectKit.Extensions.Pptx.csproj PdfObjectKit.Extensions.Pptx/
 COPY PdfObjectKit.Application/PdfObjectKit.Application.csproj PdfObjectKit.Application/
 COPY PdfObjectKit.Cli/PdfObjectKit.Cli.csproj PdfObjectKit.Cli/
 RUN dotnet restore PdfObjectKit.Cli/PdfObjectKit.Cli.csproj

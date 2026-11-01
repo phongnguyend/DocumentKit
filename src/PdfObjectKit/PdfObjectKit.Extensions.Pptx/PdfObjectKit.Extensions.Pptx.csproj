@@ -1,0 +1,26 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>$(CurrentTargetFramework)</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <Version>$(CurrentVersion)</Version>
+    <PackageOutputPath>./nupkg</PackageOutputPath>
+    <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
+    <PackageId>PdfObjectKit.Extensions.Pptx</PackageId>
+    <Authors>Phong Nguyen</Authors>
+    <Description>Editable PowerPoint export for PdfObjectKit, including text, vector graphics and transparent images.</Description>
+    <PackageTags>pdf;pptx;powerpoint;converter</PackageTags>
+    <PackageProjectUrl>https://github.com/phongnguyend/Practical.Pdf/tree/main/src/PdfObjectKit</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/phongnguyend/Practical.Pdf</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <IsPackable>true</IsPackable>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../PdfObjectKit/PdfObjectKit.csproj" />
+    <PackageReference Include="StbImageSharp" Version="2.30.16" />
+    <None Include="README.md" Pack="true" PackagePath="/" />
+    <None Include="../../../LICENSE" Pack="true" PackagePath="/" />
+  </ItemGroup>
+</Project>

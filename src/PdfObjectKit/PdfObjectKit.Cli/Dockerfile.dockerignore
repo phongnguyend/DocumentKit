@@ -13,3 +13,5 @@ PdfObjectKit.Playground.Ui
 PdfObjectKit.Tests
 PdfObjectKit.SnapshotTests
 PdfObjectKit.Demo
+
+PdfObjectKit.Extensions.Pptx.Tests

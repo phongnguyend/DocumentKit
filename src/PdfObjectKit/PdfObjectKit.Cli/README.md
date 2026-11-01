@@ -24,6 +24,7 @@ Every command takes an input and output path. Add `--overwrite` to replace an ex
 | PDF object graph and derived indexes | `to-json input.pdf graph.json [--objects-only]` |
 | Rebuild object graph | `to-pdf graph.json output.pdf` |
 | Markdown, including table/column hints | `to-markdown input.pdf output.md [--options markdown.json]` |
+| Editable PowerPoint slides | `to-pptx input.pdf slides.pptx [--options pptx.json]` |
 | Inspect selectable objects and source runs | `inspect input.pdf inspection.json` |
 | Inspect specific data | `metadata`, `forms`, `annotations`, or `watermarks`, followed by input PDF and output JSON |
 | Text search with match geometry | `search input.pdf matches.json --query "search text" [--options search.json]` |
@@ -114,6 +115,22 @@ Watermark example:
 
 ```json
 {"kind":"add-watermark","watermark":{"text":"DRAFT","opacity":0.2,"rotation":45,"fontSize":48,"pageNumbers":[1,2]}}
+```
+
+## PowerPoint options
+
+`to-pptx` creates independent editable text boxes, pictures and supported vector shapes, with one slide per selected page. Conversion notes and counts are written to stderr; a successful command can still have appearance limitations. It does not require the Node visual helper. See [editable export limitations](../README.md#editable-powerpoint-export).
+
+Example `pptx.json` (omit dimensions to match the first selected page):
+
+```json
+{
+  "pageNumbers": [1, 3],
+  "slideWidth": 960,
+  "slideHeight": 540,
+  "includeImages": true,
+  "includePaths": true
+}
 ```
 
 ## Conversion and security options
