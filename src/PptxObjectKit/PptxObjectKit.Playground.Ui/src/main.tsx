@@ -5,6 +5,7 @@ import { ArrowDown, ArrowUp, Download, FileText, FolderOpen, Presentation, Rotat
 import { marked } from 'marked';
 import DOMPurify from 'dompurify';
 import { createPptxPreview } from './renderers/pptxRenderer';
+import { PdfExportDialog } from './components/PdfExportDialog';
 import { Modal } from './components/Modal';
 import { SlideThumbnail } from './components/SlideThumbnail';
 import { ImageEditor, type ImageObject } from './components/ImageEditor';
@@ -169,6 +170,7 @@ function App({ id, initial, onOpen, onStatus, active, headerHost }: PageProps) {
   const [history, setHistory] = useState<Snapshot[]>([]);
   const [future, setFuture] = useState<Snapshot[]>([]);
   const [markdown, setMarkdown] = useState(false);
+  const [pdfExport, setPdfExport] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const fileInput = useRef<HTMLInputElement>(null);
   const slide = current?.info.slides[page - 1];
@@ -180,8 +182,8 @@ function App({ id, initial, onOpen, onStatus, active, headerHost }: PageProps) {
   }, [page, current]);
 
   useEffect(() => {
-    onStatus(id, !!current && current.bytes !== saved, busy || markdown || confirmDelete || addingImage);
-  }, [id, current, saved, busy, markdown, confirmDelete, addingImage, onStatus]);
+    onStatus(id, !!current && current.bytes !== saved, busy || markdown || pdfExport || confirmDelete || addingImage);
+  }, [id, current, saved, busy, markdown, pdfExport, confirmDelete, addingImage, onStatus]);
 
   async function open(files: File[]) {
     if (!files.length || busy) {
@@ -242,7 +244,7 @@ function App({ id, initial, onOpen, onStatus, active, headerHost }: PageProps) {
       <div className="toolbar document-bar"><strong className="filename" title={name}>{name}</strong><span>{current.info.slides.length} slides</span><div className="toolbar-controls"><div className="interaction-mode" role="group" aria-label="Interaction mode">{([['objects', 'Select objects', MousePointer2], ['text', 'Select text', TextCursor]] as const).map(([value, label, Icon]) => <button key={value} title={label} aria-label={label} aria-pressed={mode === value} onClick={() => { setMode(value); window.getSelection()?.removeAllRanges(); }}><Icon size={18} /></button>)}</div>
         <button disabled={busy} onClick={() => setAddingImage(true)}><ImagePlus size={16} />Add image</button>
         <ToolbarMenu label="Slides" icon={Files}><h3>Current slide</h3><button disabled={busy} onClick={() => void edit({ kind: 'duplicate-slide', slideNumber: page }, page + 1)}><Copy size={16} />Duplicate slide</button><button disabled={busy} onClick={() => void edit({ kind: 'insert-blank-slide', slideNumber: page }, page + 1)}><Plus size={16} />Blank slide after current</button><button disabled={busy} onClick={() => void edit({ kind: 'insert-blank-slide', slideNumber: current.info.slides.length }, current.info.slides.length + 1)}><Plus size={16} />Blank slide at end</button><hr /><button disabled={busy || page <= 1} onClick={() => move(page, page - 1)}><ArrowUp size={16} />Move earlier</button><button disabled={busy || page >= current.info.slides.length} onClick={() => move(page, page + 1)}><ArrowDown size={16} />Move later</button><hr /><button className="delete-page-action" disabled={busy || current.info.slides.length <= 1} onClick={() => setConfirmDelete(true)}><Trash2 size={16} />Delete slide</button></ToolbarMenu>
-        <ToolbarMenu label="Document" icon={FileText}><button disabled={busy} onClick={() => setMarkdown(true)}><FileText size={16} />View Markdown</button></ToolbarMenu>
+        <ToolbarMenu label="Document" icon={FileText}><button disabled={busy} onClick={() => setPdfExport(true)}><Download size={16} />Export PDF</button><button disabled={busy} onClick={() => setMarkdown(true)}><FileText size={16} />View Markdown</button></ToolbarMenu>
         <button className="toolbar-primary-download" disabled={busy} onClick={() => { download(current.bytes, name); setSaved(current.bytes); }}><Download size={16} />Download PPTX</button>
         <button aria-label="Undo" disabled={busy || !history.length} onClick={() => { setFuture(items => [...items, current]); setCurrent(history[history.length - 1]); setHistory(items => items.slice(0, -1)); setPage(1); }}><RotateCcw size={16} /></button><button aria-label="Redo" disabled={busy || !future.length} onClick={() => { setHistory(items => [...items, current]); setCurrent(future[future.length - 1]); setFuture(items => items.slice(0, -1)); setPage(1); }}><RotateCw size={16} /></button>
       </div></div>
@@ -261,6 +263,7 @@ function App({ id, initial, onOpen, onStatus, active, headerHost }: PageProps) {
     </>}
     {current && <div className="page-navigation-bar" role="toolbar" aria-label="Slide navigation"><button aria-label="Previous slide" disabled={busy || page === 1} onClick={() => setPage(page - 1)}><ChevronLeft size={18} /></button><label>Slide <select aria-label="Slide" disabled={busy} value={page} onChange={event => setPage(Number(event.target.value))}>{current.info.slides.map(item => <option key={item.id} value={item.number}>{item.number}</option>)}</select> / {current.info.slides.length}</label><button aria-label="Next slide" disabled={busy || page === current.info.slides.length} onClick={() => setPage(page + 1)}><ChevronRight size={18} /></button></div>}
     <footer>Experimental browser preview<span>Edits stay in this session. Download to keep your changes.</span></footer>
+    {pdfExport && current && <PdfExportDialog bytes={current.bytes} name={name} page={page} count={current.info.slides.length} onClose={() => setPdfExport(false)} />}
     {markdown && current && <MarkdownView snapshot={current} name={name} onClose={() => setMarkdown(false)} />}
     {addingImage && <ImageSourceDialog initialBounds={{ x: 36, y: 36, width: 180, height: 120 }} onClose={() => setAddingImage(false)} onApply={request => edit({ ...request, kind: 'add-image', slideNumber: page })} />}
     {confirmDelete && <Modal labelledBy="delete-title" className="confirm-modal" onClose={() => setConfirmDelete(false)}><div className="modal-heading"><h2 id="delete-title">Delete slide {page}?</h2><button aria-label="Cancel deletion" onClick={() => setConfirmDelete(false)}><X size={18} /></button></div><p>The slide will be removed from the presentation sequence. Retained package parts may still contain its content; this is not redaction.</p><div className="modal-actions"><button onClick={() => setConfirmDelete(false)}>Cancel</button><button className="danger" onClick={() => { setConfirmDelete(false); void edit({ kind: 'delete-slide', slideNumber: page }); }}>Delete slide</button></div></Modal>}

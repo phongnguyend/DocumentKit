@@ -6,4 +6,7 @@
   <ItemGroup>
     <ProjectReference Include="../PptxObjectKit.Application/PptxObjectKit.Application.csproj" />
   </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="../PptxObjectKit.Extensions.Pdf/PptxObjectKit.Extensions.Pdf.csproj" />
+  </ItemGroup>
 </Project>

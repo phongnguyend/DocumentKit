@@ -1,0 +1,14 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <IsPackable>true</IsPackable>
+    <Description>Native PPTX to PDF conversion with selectable text and vector graphics.</Description>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../PptxObjectKit/PptxObjectKit.csproj" />
+    <PackageReference Include="SkiaSharp" Version="3.119.1" />
+    <PackageReference Include="SkiaSharp.NativeAssets.Linux.NoDependencies" Version="3.119.1" />
+    <EmbeddedResource Include="Fonts/*.ttf" />
+    <None Include="Fonts/LICENSE*" Pack="true" PackagePath="licenses/" />
+  </ItemGroup>
+</Project>

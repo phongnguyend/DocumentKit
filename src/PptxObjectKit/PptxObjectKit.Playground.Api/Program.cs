@@ -1,4 +1,5 @@
 using System.Text.Json;
+using PptxObjectKit.Extensions.Pdf;
 using System.Xml;
 using PptxObjectKit.Application;
 using PptxObjectKit.Converters;
@@ -36,6 +37,22 @@ app.MapPost("/api/documents/markdown", async (HttpRequest request) =>
     var document = PptxReader.Read(await Read(request));
     var options = new PptxMarkdownOptions(request.Query["notes"] != "false", request.Query["images"] != "false");
     return Results.Ok(new { markdown = PptxMarkdownConverter.Convert(document, options) });
+});
+app.MapPost("/api/documents/pdf", async (HttpRequest request) =>
+{
+    var document = PptxReader.Read(await Read(request));
+    int[]? slides = null;
+    if (request.Query.TryGetValue("slides", out var selected))
+    {
+        slides = selected.ToString().Split(',').Select(value => int.TryParse(value, out var number) ? number : throw new ArgumentException("Slide numbers must be comma-separated integers.")).ToArray();
+    }
+    var result = PptxPdfConverter.Convert(document, new PptxPdfOptions
+    {
+        Slides = slides,
+        IncludeHiddenSlides = request.Query["includeHidden"] != "false",
+        FailOnWarnings = request.Query["strict"] == "true"
+    }, request.HttpContext.RequestAborted);
+    return Results.Ok(new { pdfBase64 = Convert.ToBase64String(result.Bytes), result.PageCount, result.Warnings });
 });
 app.MapPost("/api/documents/edit", async (HttpRequest request) =>
 {

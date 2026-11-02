@@ -1,13 +1,14 @@
 using System.Text.Json;
+using PptxObjectKit.Extensions.Pdf;
 using PptxObjectKit.Application;
 using PptxObjectKit.Converters;
 using PptxObjectKit.Extractors;
 using PptxObjectKit.Readers;
 using PptxObjectKit.Writers;
 
-if (args.Length < 3 || args[0] is not ("inspect" or "to-markdown" or "rewrite" or "edit"))
+if (args.Length < 3 || args[0] is not ("inspect" or "to-markdown" or "rewrite" or "edit" or "to-pdf"))
 {
-    Console.WriteLine("Usage: pptxobjectkit <inspect|to-markdown|rewrite> input.pptx output\n       pptxobjectkit edit input.pptx output.pptx edit.json\nOutput must not already exist. Editing supports text, reorder, and delete-slide.");
+    Console.WriteLine("Usage: pptxobjectkit <inspect|to-markdown|to-pdf|rewrite> input.pptx output\n       pptxobjectkit edit input.pptx output.pptx edit.json\n       pptxobjectkit to-pdf input.pptx output.pdf [options.json]\nOutput must not already exist. Editing supports text, reorder, and delete-slide.");
     return args.Length == 1 && args[0] == "--help" ? 0 : 1;
 }
 try
@@ -23,6 +24,15 @@ try
             break;
         case "to-markdown":
             output = System.Text.Encoding.UTF8.GetBytes(PptxMarkdownConverter.Convert(document));
+            break;
+        case "to-pdf":
+            var pdfOptions = args.Length > 3 ? JsonSerializer.Deserialize<PptxPdfOptions>(await File.ReadAllTextAsync(args[3]), options) : null;
+            var pdf = PptxPdfConverter.Convert(document, pdfOptions);
+            output = pdf.Bytes;
+            foreach (var warning in pdf.Warnings)
+            {
+                Console.Error.WriteLine(warning);
+            }
             break;
         case "edit":
             if (args.Length != 4)

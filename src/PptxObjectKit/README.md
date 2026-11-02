@@ -1,6 +1,6 @@
 # PptxObjectKit
 
-A first version of a .NET 10 library and playground for opening, inspecting, editing, and saving `.pptx` presentations. It is independent of PdfObjectKit and LibreOffice. The library uses ZIP and XML APIs from .NET; it has no NuGet dependencies.
+A first version of a .NET 10 library and playground for opening, inspecting, editing, and saving `.pptx` presentations. It is independent of PdfObjectKit and LibreOffice. The core library uses ZIP and XML APIs from .NET and has no NuGet dependencies. The optional PDF extension uses SkiaSharp for native PDF output.
 
 ## Projects
 
@@ -8,7 +8,9 @@ A first version of a .NET 10 library and playground for opening, inspecting, edi
 | --- | --- |
 | `PptxObjectKit` | Package models, reader/writer, slide extraction, editors, Markdown conversion |
 | `PptxObjectKit.Application` | Shared edit dispatch for API and CLI |
-| `PptxObjectKit.Cli` | Inspect, rewrite, edit and convert to Markdown |
+| `PptxObjectKit.Cli` | Inspect, rewrite, edit and convert to Markdown/PDF |
+| `PptxObjectKit.Extensions.Pdf` | Native DrawingML-to-PDF rendering with selectable text |
+| `PptxObjectKit.Extensions.Pdf.Tests` | PDF output regression tests using PdfObjectKit to read the result |
 | `PptxObjectKit.Playground.Api` | Stateless ASP.NET Core minimal API |
 | `PptxObjectKit.Playground.Ui` | React 19 / TypeScript playground |
 | `PptxObjectKit.Tests` | Console regression suite and a small synthetic presentation |
@@ -96,15 +98,54 @@ The output must not already exist. Example `edit.json`:
 
 Other edits: `{ "kind": "reorder", "order": [2, 1] }` and `{ "kind": "delete-slide", "slideNumber": 1 }`.
 
+## Native PDF conversion
+
+Choose **Document > Export PDF** in the playground. Export all slides or the current slide, optionally exclude hidden slides, review conversion notes, preview the generated PDF, and download it. The current edited presentation is exported; the source PPTX is unchanged. Changing options clears the old result.
+
+This conversion runs entirely in .NET using a DrawingML renderer and SkiaSharp's PDF writer. It does not invoke PowerPoint, LibreOffice, or a browser. Text is written as text with embedded fonts, including inherited solid and gradient fills; supported shapes and SVG paths remain vectors, and pictures remain images. PNG diagrams retain their source pixels using lossless PDF image encoding rather than low-quality JPEG recompression.
+
+```csharp
+using PptxObjectKit.Readers;
+using PptxObjectKit.Extensions.Pdf;
+
+var document = PptxReader.Read(File.ReadAllBytes("input.pptx"));
+var result = PptxPdfConverter.Convert(document, new PptxPdfOptions
+{
+    Slides = [1, 3, 2], // Omit for all slides; numbers are one-based.
+    IncludeHiddenSlides = false,
+    FailOnWarnings = false
+});
+File.WriteAllBytes("output.pdf", result.Bytes);
+foreach (var warning in result.Warnings)
+{
+    Console.WriteLine(warning);
+}
+```
+
+```powershell
+dotnet run --project PptxObjectKit.Cli -- to-pdf input.pptx output.pdf
+# Optional JSON: { "slides": [1, 3], "includeHiddenSlides": false, "failOnWarnings": true }
+dotnet run --project PptxObjectKit.Cli -- to-pdf input.pptx output.pdf options.json
+```
+
+The CLI refuses to overwrite an existing output and writes conversion notes to stderr. `FailOnWarnings` rejects output when a known limitation or font substitution is detected; it is not a certification of PowerPoint fidelity.
+
+Supported rendering includes layout/master placeholder geometry, theme colors and fonts, template artwork, nested group transforms, rotated/flipped shapes with readable text, text size/bold/italic/color, basic word wrapping, horizontal alignment and vertical anchoring, paragraph spacing, common bullets/numbering, underline/strikethrough, raster pictures and cropping, basic SVG paths, common shape geometry, custom path segments, linear/radial gradients, table cell text/fills/borders, and saved SmartArt drawings. Export is limited to 500 selected slides and 64 megapixels per decoded raster image. Cancellation is supported between slides, shapes, and paragraphs.
+
+**Fidelity limits:** this is an initial native converter, not a complete Office layout engine. Charts, SmartArt without a saved drawing, unsupported preset/custom geometry, shadows/3D, advanced SVG/CSS, vertical/multicolumn text, full complex-script shaping, advanced numbering, and some table/theme effects are incomplete. Unsupported content is reported where detected and may be omitted or approximated. Animations/transitions are static; media playback, speaker notes, accessibility structure and interactive hyperlinks are not exported. Visually review output before distributing it.
+
+Fonts available to Skia on the host are used when possible; unavailable fonts fall back to bundled Noto Sans and produce conversion notes. Embedded PPTX fonts are not loaded. Font availability and metrics can differ across platforms, including Linux containers, so line wrapping may differ. The extension includes Linux native assets and a fallback font; PowerPoint/LibreOffice are not runtime dependencies. Noto Sans license is included under `PptxObjectKit.Extensions.Pdf/Fonts`.
+
 ## API
 
-Inspection and Markdown endpoints accept raw PPTX bytes. The edit endpoint accepts multipart form data with a `file` part containing PPTX bytes and an `edit` field containing JSON.
+Inspection, Markdown and PDF endpoints accept raw PPTX bytes. The edit endpoint accepts multipart form data with a `file` part containing PPTX bytes and an `edit` field containing JSON.
 
 | Endpoint | Result |
 | --- | --- |
 | `GET /api/health` | Health status |
 | `POST /api/documents/inspect` | Slide dimensions, text objects, notes, warnings |
 | `POST /api/documents/markdown?notes=true&images=true` | JSON with `markdown` |
+| `POST /api/documents/pdf?slides=1,2&includeHidden=true&strict=false` | JSON with `pdfBase64`, `pageCount`, `warnings`; omit `slides` for all |
 | `POST /api/documents/edit` | Updated PPTX bytes |
 
 Malformed/unsupported documents return HTTP 422. Requests are limited to 50 MB, 10,000 package parts, 32 MB per expanded part, 128 MB total expanded size, and 2,000 slides. External resources are not fetched. XML DTDs are prohibited.
@@ -117,7 +158,7 @@ This is an initial toolkit, not a PowerPoint replacement or a production-ready r
 - Preview supports basic text, pictures, paths, rectangles/ellipses, gradients, transforms and opacity. Theme fill/line/font references and common elbow connectors with triangle/open arrowheads are supported. It resolves slide ordering, placeholder geometry and text defaults from layouts/masters, theme colors and fonts, template artwork, nested group transforms, image cropping, saved SmartArt drawings, common rounded-corner/brace shapes, readable text inside flipped shapes, word and long-URL wrapping across formatted runs (including non-breaking spaces), hyperlink colors/underlines, paragraph alignment/spacing, basic numbered and bulleted lists, common Wingdings symbol fallbacks, table cells with fills/borders and header/banded-row styling, and vertical text anchoring. Advanced shape geometry, full theme style references, advanced list numbering and symbol fonts, complex table style overrides, charts, SmartArt without a saved drawing, animation, video, and exact Office font layout remain incomplete. Unsupported content can be absent or approximate in preview but is preserved in the saved package.
 - Signed packages can be read but not edited.
 - Slide deletion removes the slide from the presentation sequence. Unreferenced parts are retained to avoid damaging shared assets/internal links. **Deletion is not redaction or content sanitization.**
-- No creation of presentations, duplication of slides, image editing, object movement/resizing yet.
+- Creating a presentation from scratch is not yet supported.
 - No server-side user authentication, persistence or collaboration. Add deployment access controls appropriate to your environment.
 
 ## Validation
@@ -125,6 +166,7 @@ This is an initial toolkit, not a PowerPoint replacement or a production-ready r
 ```powershell
 dotnet build PptxObjectKit.slnx -c Release
 dotnet run --project PptxObjectKit.Tests -c Release
+dotnet run --project PptxObjectKit.Extensions.Pdf.Tests -c Release
 cd PptxObjectKit.Playground.Ui
 npm run build
 npx playwright test
