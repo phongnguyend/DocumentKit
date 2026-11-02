@@ -3,6 +3,7 @@ import { createRoot } from 'react-dom/client';
 import './style.css';
 
 const engines = [
+  { id: 'pptxobjectkit', name: 'PptxObjectKit', description: 'Native .NET conversion (PPTX only, experimental)' },
   { id: 'libreoffice', name: 'LibreOffice', description: 'Impress document to PDF' },
 ];
 const maxSize = 10 * 1024 * 1024;
@@ -83,6 +84,9 @@ function App() {
     requests.current.add(controller);
     const timeout = setTimeout(() => controller.abort(), 120000);
     try {
+      if (engine.id === 'pptxobjectkit' && !/\.pptx$/i.test(file.name)) {
+        throw new Error('Use LibreOffice for legacy .ppt files. PptxObjectKit accepts .pptx only.');
+      }
       const body = new FormData();
       body.append('file', file);
       const response = await fetch(`/api/${engine.id}/convert`, { method: 'POST', body, signal: controller.signal });
@@ -109,7 +113,7 @@ function App() {
       controller.signal.throwIfAborted();
       const url = URL.createObjectURL(blob);
       urls.current.add(url);
-      updateResult({ status: 'success', url, name: file.name.replace(/\.(pptx|ppt)$/i, multiple ? `.${engine.id}.pdf` : '.pdf'), size: blob.size });
+      updateResult({ status: 'success', warningCount: Number(response.headers.get('X-Conversion-Warning-Count') || 0), url, name: file.name.replace(/\.(pptx|ppt)$/i, multiple ? `.${engine.id}.pdf` : '.pdf'), size: blob.size });
     } catch (failure) {
       updateResult({ status: 'error', error: failure.name === 'AbortError' ? 'Conversion timed out. Please try again.' : failure instanceof TypeError ? 'Could not reach the conversion service. Check that the proxy is running and try again.' : failure.message });
     } finally {
@@ -122,7 +126,7 @@ function App() {
     <div className="shell">
       <header className="topbar"><a href="/" className="brand"><span className="brand-icon">P</span> PowerPoint to PDF</a><span className="badge">PLAYGROUND</span></header>
       <main>
-        <div className="intro"><p className="eyebrow">FROM SLIDES TO PDF</p><h1>Your presentation.<br /><span>Ready for print.</span></h1><p>Turn a PowerPoint file into a downloadable PDF.<br /> Convert with LibreOffice, then view or download your PDF.</p></div>
+        <div className="intro"><p className="eyebrow">FROM SLIDES TO PDF</p><h1>Your presentation.<br /><span>Ready for print.</span></h1><p>Turn a PowerPoint file into a downloadable PDF.<br /> Choose an engine or compare both, then view or download your PDFs.</p></div>
         <form onSubmit={convert} className="workspace" aria-busy={busy}>
           <section className="upload-panel" aria-labelledby="upload-heading">
             <div className="section-title"><span className="step">01</span><h2 id="upload-heading">Add your presentation</h2></div>
@@ -178,6 +182,7 @@ function App() {
                 {result.status === 'error' && <p className="error" role="alert">{result.engine.name}: {result.error}</p>}
                 {result.status === 'success' && <div className="success">
                 <div><strong>{result.engine.name}: Your PDF is ready</strong><p>{result.name} · {(result.size / 1024).toFixed(1)} KB</p></div>
+                {result.warningCount > 0 && <p>{result.warningCount} conversion notes: some content may be approximated or omitted. Review the PDF before sharing.</p>}
                 <div className="result-actions">
                   <a className="secondary view-pdf" href={result.url} target="_blank" rel="noopener noreferrer" aria-label="View PDF (opens in a new tab)">View PDF <span aria-hidden="true">↗</span></a>
                   <a className="primary download" href={result.url} download={result.name}>Download PDF <span aria-hidden="true">↓</span></a>
@@ -188,7 +193,7 @@ function App() {
           </div>
           {error && <p className="error" role="alert">{error}</p>}
         </form>
-        <footer><span>PowerPoint in. PDF out.</span><span>Powered by LibreOffice</span></footer>
+        <footer><span>PowerPoint in. PDF out.</span><span>LibreOffice and PptxObjectKit</span></footer>
       </main>
     </div>
   );

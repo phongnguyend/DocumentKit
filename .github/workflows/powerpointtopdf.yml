@@ -8,10 +8,16 @@ on:
       - 'releases/powerpointtopdf/v*'
     paths:
       - 'src/PowerPointToPdf/**'
+      - 'src/PptxObjectKit/PptxObjectKit/**'
+      - 'src/PptxObjectKit/PptxObjectKit.Extensions.Pdf/**'
+      - 'src/PptxObjectKit/Directory.Build.props'
       - '.github/workflows/powerpointtopdf.yml'
   pull_request:
     paths:
       - 'src/PowerPointToPdf/**'
+      - 'src/PptxObjectKit/PptxObjectKit/**'
+      - 'src/PptxObjectKit/PptxObjectKit.Extensions.Pdf/**'
+      - 'src/PptxObjectKit/Directory.Build.props'
       - '.github/workflows/powerpointtopdf.yml'
   workflow_dispatch:
 
@@ -61,7 +67,7 @@ jobs:
       - name: Install Impress and PDF inspection tools
         run: |
           sudo apt-get update
-          sudo apt-get install -y --no-install-recommends libreoffice-impress fonts-dejavu-core fonts-liberation poppler-utils
+          sudo apt-get install -y --no-install-recommends libreoffice-impress libfontconfig1 fonts-dejavu-core fonts-liberation poppler-utils
       - name: Build services
         run: dotnet build PowerPointToPdf.slnx --configuration Release
       - name: Verify CLI conversion
@@ -72,9 +78,16 @@ jobs:
       - name: Start conversion services
         run: |
           dotnet run --project PowerPointToPdf.LibreOffice.Api --configuration Release --no-build > /tmp/powerpoint-api.log 2>&1 &
+          dotnet run --project PowerPointToPdf.PptxObjectKit.Api --configuration Release --no-build > /tmp/powerpoint-native-api.log 2>&1 &
+          curl --fail --retry 30 --retry-connrefused --retry-delay 1 http://localhost:62831/health
           dotnet run --project PowerPointToPdf.Proxy --configuration Release --no-build > /tmp/powerpoint-proxy.log 2>&1 &
           curl --fail --retry 30 --retry-connrefused --retry-delay 1 http://localhost:62830/health
           curl --fail --retry 30 --retry-connrefused --retry-delay 1 http://localhost:62833/health
+      - name: Verify native PDF text
+        run: |
+          curl --fail -F "file=@PowerPointToPdf.Playground/e2e/fixtures/sample.pptx" http://localhost:62833/pptxobjectkit/convert -o /tmp/powerpoint-native.pdf
+          pdftotext /tmp/powerpoint-native.pdf /tmp/powerpoint-native.txt
+          grep -q 'PowerPoint to PDF test slide' /tmp/powerpoint-native.txt
       - name: Build and test playground
         working-directory: src/PowerPointToPdf/PowerPointToPdf.Playground
         env:
@@ -91,6 +104,7 @@ jobs:
           name: powerpoint-conversion-results
           path: |
             src/PowerPointToPdf/PowerPointToPdf.Playground/test-results/
+            /tmp/powerpoint-native-api.log
             /tmp/powerpoint-api.log
             /tmp/powerpoint-proxy.log
 
@@ -104,6 +118,10 @@ jobs:
       max-parallel: 4
       matrix:
         include:
+          - image: powerpoint-to-pdf/pptxobjectkit-api
+            context: src
+            dockerfile: src/PowerPointToPdf/PowerPointToPdf.PptxObjectKit.Api/Dockerfile
+            cache-scope: powerpointtopdf-pptxobjectkit-api
           - image: powerpoint-to-pdf/libreoffice-api
             context: src/PowerPointToPdf
             dockerfile: src/PowerPointToPdf/PowerPointToPdf.LibreOffice.Api/Dockerfile

@@ -2,4 +2,5 @@
   <Project Path="PowerPointToPdf.LibreOffice.Api/PowerPointToPdf.LibreOffice.Api.csproj" />
   <Project Path="PowerPointToPdf.LibreOffice.Cli/PowerPointToPdf.LibreOffice.Cli.csproj" />
   <Project Path="PowerPointToPdf.Proxy/PowerPointToPdf.Proxy.csproj" />
+  <Project Path="PowerPointToPdf.PptxObjectKit.Api/PowerPointToPdf.PptxObjectKit.Api.csproj" />
 </Solution>

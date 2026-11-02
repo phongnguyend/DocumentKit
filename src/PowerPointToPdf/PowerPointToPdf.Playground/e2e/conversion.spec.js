@@ -21,7 +21,7 @@ test('validates uploads and accepts drag and drop', async ({ page }) => {
   });
   await page.locator('.dropzone').dispatchEvent('drop', { dataTransfer: transfer });
   await expect(page.getByRole('button', { name: 'Convert to PDF' })).toBeEnabled();
-  await page.getByRole('checkbox').uncheck();
+  await page.getByRole('checkbox', { name: 'LibreOffice' }).uncheck();
   await expect(page.getByRole('button', { name: 'Convert to PDF' })).toBeDisabled();
 });
 
@@ -80,6 +80,44 @@ test('real LibreOffice conversion and API validation through proxy', async ({ pa
     ['invalid.pptx', Buffer.from('not a document'), 422],
   ]) {
     const response = await request.post('/api/libreoffice/convert', { multipart: { file: { name, mimeType: 'application/octet-stream', buffer } } });
+    expect(response.status()).toBe(status);
+  }
+});
+
+
+test('compares both engines and rejects legacy PPT for the native engine', async ({ page }) => {
+  await page.route('**/api/*/convert', (route) => route.fulfill({ contentType: 'application/pdf', body: '%PDF-1.4\n%%EOF', headers: { 'X-Conversion-Warning-Count': '2' } }));
+  await page.goto('/');
+  await page.getByLabel('PowerPoint file').setInputFiles(file);
+  await page.getByRole('checkbox', { name: 'PptxObjectKit' }).check();
+  await page.getByRole('button', { name: 'Convert to PDF' }).click();
+  for (const engine of ['PptxObjectKit', 'LibreOffice']) {
+    const result = page.getByRole('region', { name: `${engine} result` });
+    await expect(result.getByRole('link', { name: 'Download PDF' })).toHaveAttribute('download', `sample.${engine.toLowerCase()}.pdf`);
+    await expect(result).toContainText('2 conversion notes');
+  }
+  await page.getByLabel('PowerPoint file').setInputFiles({ ...file, name: 'legacy.ppt' });
+  await page.getByRole('button', { name: 'Convert to PDF' }).click();
+  await expect(page.getByRole('alert')).toContainText('Use LibreOffice for legacy .ppt');
+  await expect(page.getByRole('region', { name: 'LibreOffice result' }).getByRole('link', { name: 'Download PDF' })).toBeVisible();
+});
+
+test('real native conversion and API validation through proxy', async ({ page, request }) => {
+  test.skip(process.env.POWERPOINT_TO_PDF_LIVE_TEST !== '1' && process.env.POWERPOINT_TO_PDF_NATIVE_TEST !== '1', 'Requires proxy and native API.');
+  await page.goto('/');
+  await page.getByRole('checkbox', { name: 'LibreOffice' }).uncheck();
+  await page.getByRole('checkbox', { name: 'PptxObjectKit' }).check();
+  await page.getByLabel('PowerPoint file').setInputFiles(file);
+  await page.getByRole('button', { name: 'Convert to PDF' }).click();
+  const download = page.getByRole('link', { name: 'Download PDF' });
+  await expect(download).toBeVisible({ timeout: 30000 });
+  expect(await download.evaluate(async (link) => (await (await fetch(link.href)).blob()).slice(0, 5).text())).toBe('%PDF-');
+  for (const [name, buffer, status] of [
+    ['legacy.ppt', file.buffer, 400],
+    ['empty.pptx', Buffer.alloc(0), 400],
+    ['invalid.pptx', Buffer.from('not a document'), 422],
+  ]) {
+    const response = await request.post('/api/pptxobjectkit/convert', { multipart: { file: { name, mimeType: 'application/octet-stream', buffer } } });
     expect(response.status()).toBe(status);
   }
 });

@@ -1,13 +1,16 @@
 # PowerPoint to PDF
 
 The same CLI / API / proxy / React 19 playground structure as `HtmlToPdf`,
-using LibreOffice Impress for `.pptx` and `.ppt` files.
+using LibreOffice Impress for `.pptx` and `.ppt` files, or the native
+`PptxObjectKit.Extensions.Pdf` converter for `.pptx` files. Select either engine
+or both in the playground to compare their PDFs.
 
 | Project | Purpose |
 | --- | --- |
 | `PowerPointToPdf.LibreOffice.Cli` | Convert a local file from the command line |
 | `PowerPointToPdf.LibreOffice.Api` | Multipart file conversion API |
-| `PowerPointToPdf.Proxy` | YARP gateway at `/libreoffice/*` |
+| `PowerPointToPdf.PptxObjectKit.Api` | Native .NET PPTX-to-PDF engine (no LibreOffice required) |
+| `PowerPointToPdf.Proxy` | YARP gateway at `/libreoffice/*` and `/pptxobjectkit/*` |
 | `PowerPointToPdf.Playground` | Drag/drop or browse, then view or download the PDF |
 
 LibreOffice execution lives in the API project and is linked into its CLI. Excel, Word and PowerPoint have independent converter implementations. Each conversion has an
@@ -33,10 +36,11 @@ docker compose up --build -d
 | Playground | http://localhost:8114 |
 | Proxy | http://localhost:8110 |
 | LibreOffice API | http://localhost:8111 |
+| Native API | http://localhost:8112 |
 
-The .NET Dockerfiles use this solution directory as their build context.
+The native API Dockerfile uses `src/` as its build context to include PptxObjectKit. Other .NET Dockerfiles use this solution directory.
 Their `Dockerfile.dockerignore` excludes local `bin/` and `obj/` output.
-Containers include LibreOffice and basic fonts, and run as a non-root user.
+Containers run as a non-root user. The native engine includes fonts and Skia, without LibreOffice.
 
 ## Local development
 
@@ -47,6 +51,7 @@ or available as `soffice` on PATH on Linux. Start these in separate terminals:
 ```powershell
 dotnet build ./PowerPointToPdf.slnx
 dotnet run --project ./PowerPointToPdf.LibreOffice.Api
+dotnet run --project ./PowerPointToPdf.PptxObjectKit.Api
 dotnet run --project ./PowerPointToPdf.Proxy
 ```
 
@@ -68,6 +73,24 @@ Invalid uploads return 400, unconvertible documents 422, missing LibreOffice
 
 ```powershell
 curl.exe -f -F "file=@sample.pptx" http://localhost:8110/libreoffice/convert -o sample.pdf
+```
+
+## Native engine
+
+`POST /pptxobjectkit/convert` on the proxy accepts the same multipart `file`
+field, limited to non-empty `.pptx` files up to 10 MB. The service runs locally
+on port 62831. It returns PDF bytes and an `X-Conversion-Warning-Count` header;
+the playground displays a notice when content was approximated or omitted.
+Invalid uploads return 400 and unsupported or malformed presentations return 422.
+
+This engine preserves supported text as selectable text and supports images and
+vector graphics. It is experimental: complex Office graphics, effects and some
+fonts/layouts may differ. Compare its output with LibreOffice before sharing.
+The implementation is `PptxObjectKit.Extensions.Pdf`; `PdfObjectKit.Extensions.Pptx`
+converts PDF to PowerPoint in the opposite direction.
+
+```powershell
+curl.exe -f -F "file=@sample.pptx" http://localhost:8110/pptxobjectkit/convert -o native.pdf
 ```
 
 ## CLI
