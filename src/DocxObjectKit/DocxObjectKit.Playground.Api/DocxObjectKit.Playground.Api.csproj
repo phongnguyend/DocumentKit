@@ -2,4 +2,7 @@
   <ItemGroup>
     <ProjectReference Include="../DocxObjectKit.Application/DocxObjectKit.Application.csproj" />
   </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="../DocxObjectKit.Extensions.Markdown/DocxObjectKit.Extensions.Markdown.csproj" />
+  </ItemGroup>
 </Project>

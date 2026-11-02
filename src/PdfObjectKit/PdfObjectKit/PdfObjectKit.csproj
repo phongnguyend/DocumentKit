@@ -8,8 +8,8 @@
     <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
     <PackageId>PdfObjectKit</PackageId>
     <Authors>Phong Nguyen</Authors>
-    <Description>A dependency-free .NET library for reading, editing, and writing PDF object graphs, JSON conversion, and text, image, paragraph, and Markdown extraction.</Description>
-    <PackageTags>pdf;pdf-parser;pdf-editor;json;markdown</PackageTags>
+    <Description>A dependency-free .NET library for reading, editing, and writing PDF object graphs, JSON conversion, and text, image, paragraph, and structured-content extraction.</Description>
+    <PackageTags>pdf;pdf-parser;pdf-editor;json</PackageTags>
     <PackageProjectUrl>https://github.com/phongnguyend/DocumentKit/tree/main/src/PdfObjectKit</PackageProjectUrl>
     <RepositoryUrl>https://github.com/phongnguyend/DocumentKit</RepositoryUrl>
     <RepositoryType>git</RepositoryType>

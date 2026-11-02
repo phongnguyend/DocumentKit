@@ -1,3 +1,4 @@
+using PdfObjectKit.Extensions.Markdown;
 using PdfObjectKit.Extractors;
 using PdfObjectKit.Graphs;
 using PdfObjectKit.Primitives;

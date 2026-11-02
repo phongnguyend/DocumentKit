@@ -22,4 +22,7 @@
     <Using Include="Xunit" />
   </ItemGroup>
 
+  <ItemGroup>
+    <ProjectReference Include="../PdfObjectKit.Extensions.Markdown/PdfObjectKit.Extensions.Markdown.csproj" />
+  </ItemGroup>
 </Project>

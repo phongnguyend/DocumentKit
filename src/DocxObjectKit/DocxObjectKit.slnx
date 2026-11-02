@@ -6,4 +6,6 @@
   <Project Path="DocxObjectKit.Cli/DocxObjectKit.Cli.csproj" />
   <Project Path="DocxObjectKit.Tests/DocxObjectKit.Tests.csproj" />
   <Project Path="DocxObjectKit.Extensions.Pdf.Tests/DocxObjectKit.Extensions.Pdf.Tests.csproj" />
+  <Project Path="DocxObjectKit.Extensions.Markdown/DocxObjectKit.Extensions.Markdown.csproj" />
+  <Project Path="DocxObjectKit.Extensions.Markdown.Tests/DocxObjectKit.Extensions.Markdown.Tests.csproj" />
 </Solution>

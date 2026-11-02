@@ -2,7 +2,7 @@ using System.Text.Json;
 using PptxObjectKit.Extensions.Pdf;
 using System.Xml;
 using PptxObjectKit.Application;
-using PptxObjectKit.Converters;
+using PptxObjectKit.Extensions.Markdown;
 using PptxObjectKit.Extractors;
 using PptxObjectKit.Readers;
 

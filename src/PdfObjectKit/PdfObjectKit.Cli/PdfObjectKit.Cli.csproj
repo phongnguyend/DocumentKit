@@ -10,4 +10,7 @@
     <ProjectReference Include="../PdfObjectKit.Application/PdfObjectKit.Application.csproj" />
     <None Update="visual/visual.mjs;visual/package.json;visual/package-lock.json" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
   </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="../PdfObjectKit.Extensions.Markdown/PdfObjectKit.Extensions.Markdown.csproj" />
+  </ItemGroup>
 </Project>

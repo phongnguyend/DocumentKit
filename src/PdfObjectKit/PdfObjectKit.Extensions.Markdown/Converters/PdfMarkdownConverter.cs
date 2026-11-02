@@ -2,7 +2,7 @@ using System.Text;
 using PdfObjectKit.Analysis;
 using PdfObjectKit.Models;
 
-namespace PdfObjectKit.Converters;
+namespace PdfObjectKit.Extensions.Markdown;
 
 public static class PdfMarkdownConverter
 {

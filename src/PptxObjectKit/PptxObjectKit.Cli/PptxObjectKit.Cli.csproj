@@ -9,4 +9,7 @@
   <ItemGroup>
     <ProjectReference Include="../PptxObjectKit.Extensions.Pdf/PptxObjectKit.Extensions.Pdf.csproj" />
   </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="../PptxObjectKit.Extensions.Markdown/PptxObjectKit.Extensions.Markdown.csproj" />
+  </ItemGroup>
 </Project>

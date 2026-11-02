@@ -9,4 +9,7 @@
   <ItemGroup>
     <None Include="Fixtures/sample.pptx" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="../PptxObjectKit.Extensions.Markdown/PptxObjectKit.Extensions.Markdown.csproj" />
+  </ItemGroup>
 </Project>

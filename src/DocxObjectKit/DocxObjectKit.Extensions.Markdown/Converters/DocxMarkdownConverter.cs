@@ -5,7 +5,7 @@ using DocxObjectKit.Models;
 using DocxObjectKit.Editors;
 using static DocxObjectKit.Models.DocxNamespaces;
 
-namespace DocxObjectKit.Converters;
+namespace DocxObjectKit.Extensions.Markdown;
 
 public static class DocxMarkdownConverter
 {

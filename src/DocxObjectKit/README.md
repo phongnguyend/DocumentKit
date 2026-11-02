@@ -212,3 +212,11 @@ unchanged. Minimum (`atLeast`) paragraph line spacing uses point-based minimums,
 while automatic spacing uses a line-height multiplier.
 
 Body DrawingML horizontal and vertical line shapes render as vector rules in both native preview and PDF, preserving anchor positions, stroke thickness, direct RGB colors and theme colors. Diagonal/rotated lines and advanced line effects remain limited.
+
+## Markdown extension
+
+Markdown conversion is supplied by the optional
+[DocxObjectKit.Extensions.Markdown](DocxObjectKit.Extensions.Markdown/README.md) package.
+Add a reference to it when using `DocxMarkdownConverter`; import the
+`DocxObjectKit.Extensions.Markdown` namespace. Conversion behavior is unchanged.
+The playground and CLI include the extension. Core-only consumers do not need it.

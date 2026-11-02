@@ -1,7 +1,7 @@
 using PdfObjectKit.Diagnostics;
 using PdfObjectKit.Models;
 
-namespace PdfObjectKit.Converters;
+namespace PdfObjectKit.Extensions.Markdown;
 
 public sealed class PdfMarkdownResult
 {

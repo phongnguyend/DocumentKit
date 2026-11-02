@@ -1379,3 +1379,14 @@ Run extension tests with:
 ```powershell
 dotnet run --project src/PdfObjectKit/PdfObjectKit.Extensions.Docx.Tests -c Release
 ```
+
+## Markdown extension
+
+Markdown conversion is supplied by the optional
+[PdfObjectKit.Extensions.Markdown](PdfObjectKit.Extensions.Markdown/README.md) package.
+Add a reference to it when using `PdfMarkdownConverter`; import the
+`PdfObjectKit.Extensions.Markdown` namespace. Conversion behavior is unchanged.
+The playground and CLI include the extension. Core-only consumers do not need it.
+
+Shared document analysis remains in core and accepts `PdfAnalysisOptions`.
+`PdfMarkdownOptions` inherits these options and adds Markdown image rendering.

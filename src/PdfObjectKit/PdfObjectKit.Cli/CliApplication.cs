@@ -1,3 +1,4 @@
+using PdfObjectKit.Extensions.Markdown;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
@@ -395,7 +396,7 @@ public static class CliApplication
     }
 
     private const string Help = """
-        PdfObjectKit CLI â€” offline Playground document operations
+        PdfObjectKit CLI — offline Playground document operations
         All commands: COMMAND INPUT OUTPUT [--overwrite]. No API server required.
 
         to-json input.pdf output.json [--objects-only]

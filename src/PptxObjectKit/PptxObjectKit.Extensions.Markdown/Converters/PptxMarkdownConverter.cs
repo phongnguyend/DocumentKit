@@ -5,7 +5,7 @@ using PptxObjectKit.Graphs;
 using PptxObjectKit.Models;
 using static PptxObjectKit.Graphs.PptxPackageGraph;
 
-namespace PptxObjectKit.Converters;
+namespace PptxObjectKit.Extensions.Markdown;
 
 public sealed record PptxMarkdownOptions(bool IncludeNotes = true, bool IncludeImages = true);
 

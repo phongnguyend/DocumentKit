@@ -1,7 +1,6 @@
 using PdfObjectKit.Options;
 using PdfObjectKit.Diagnostics;
 using System.Text.RegularExpressions;
-using PdfObjectKit.Converters;
 using PdfObjectKit.Extractors;
 using PdfObjectKit.Graphs;
 using PdfObjectKit.Interpreters;
@@ -15,7 +14,7 @@ public static class PdfDocumentAnalyzer
 {
     private static readonly Regex ListMarker = new(@"^\s*(?:(?<number>[0-9]{1,9})[.)]|[-*+\u2022])\s+(?<body>.+)$", RegexOptions.CultureInvariant);
 
-    public static PdfStructuredDocument Analyze(PdfObjectDocument document, PdfMarkdownOptions? options = null)
+    public static PdfStructuredDocument Analyze(PdfObjectDocument document, PdfAnalysisOptions? options = null)
     {
         PdfDocumentValidator.Validate(document);
         options ??= new();

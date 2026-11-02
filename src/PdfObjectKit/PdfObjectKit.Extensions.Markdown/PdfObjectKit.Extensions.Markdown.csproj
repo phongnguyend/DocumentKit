@@ -1,0 +1,22 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <IsPackable>true</IsPackable>
+    <Authors>Phong Nguyen</Authors>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <PackageTags>markdown;documents;converter</PackageTags>
+    <RepositoryUrl>https://github.com/phongnguyend/DocumentKit</RepositoryUrl>
+    <Version>$(CurrentVersion)</Version>
+    <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
+    <PackageOutputPath>./nupkg</PackageOutputPath>
+    <Description>Markdown conversion for PdfObjectKit.</Description>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../PdfObjectKit/PdfObjectKit.csproj" />
+    <None Include="README.md" Pack="true" PackagePath="/" />
+    <None Include="../../../LICENSE" Pack="true" PackagePath="/" />
+  </ItemGroup>
+</Project>

@@ -173,3 +173,11 @@ npx playwright test
 ```
 
 Local browser tests use installed Chrome. CI installs Chromium and runs library and browser tests, then builds service images. The fixture is synthetic and contains no user documents.
+
+## Markdown extension
+
+Markdown conversion is supplied by the optional
+[PptxObjectKit.Extensions.Markdown](PptxObjectKit.Extensions.Markdown/README.md) package.
+Add a reference to it when using `PptxMarkdownConverter`; import the
+`PptxObjectKit.Extensions.Markdown` namespace. Conversion behavior is unchanged.
+The playground and CLI include the extension. Core-only consumers do not need it.

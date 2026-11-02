@@ -1,7 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <IsPackable>true</IsPackable>
-    <Description>Read, inspect, edit and write PPTX packages and extract Markdown.</Description>
+    <Description>Read, inspect, edit and write PPTX packages.</Description>
     <Authors>Phong Nguyen</Authors>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
     <PackageReadmeFile>README.md</PackageReadmeFile>
@@ -13,5 +13,6 @@
   </ItemGroup>
   <ItemGroup>
     <InternalsVisibleTo Include="PptxObjectKit.Extensions.Pdf" />
+    <InternalsVisibleTo Include="PptxObjectKit.Extensions.Markdown" />
   </ItemGroup>
 </Project>

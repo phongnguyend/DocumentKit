@@ -9,3 +9,7 @@ using System.Runtime.CompilerServices;
 [assembly: InternalsVisibleTo("PdfObjectKit.Extensions.Docx")]
 
 [assembly: InternalsVisibleTo("PdfObjectKit.Extensions.Docx.Tests")]
+
+[assembly: InternalsVisibleTo("PdfObjectKit.Extensions.Markdown")]
+
+[assembly: InternalsVisibleTo("PdfObjectKit.Extensions.Markdown.Tests")]

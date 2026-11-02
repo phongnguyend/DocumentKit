@@ -1,3 +1,4 @@
+using PdfObjectKit.Extensions.Markdown;
 using PdfObjectKit.Extractors;
 using PdfObjectKit.Graphs;
 using PdfObjectKit.Interpreters;
@@ -6,6 +7,7 @@ using PdfObjectKit.Writers;
 using PdfObjectKit.Converters;
 using PdfObjectKit;
 using PdfObjectKit.Editors;
+
 
 var checks = 0;
 void Check(bool condition, string name)
@@ -86,7 +88,6 @@ TextMovementTests.Run();
 CanvasRenderingTests.Run();
 AnnotationTests.Run();
 
-MarkdownTests.Run();
 TableHintTests.Run();
 
 TableTests.Run();
@@ -95,7 +96,6 @@ DiagnosticTests.Run();
 
 HeuristicTests.Run();
 
-MarkdownImageTests.Run();
 
 SecurityTests.Run();
 WatermarkTests.Run();

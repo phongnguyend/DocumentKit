@@ -39,7 +39,7 @@ scope. Branch and pull-request builds use local `:ci` tags; release-tag runs
 publish the built images to Docker Hub. DocxObjectKit and PptxObjectKit currently
 provide local Compose builds without standalone Docker Hub release publishing.
 
-PdfObjectKit also publishes its core, Word-extension, and PowerPoint-extension NuGet packages on
+PdfObjectKit also publishes its core, Markdown, Word, and PowerPoint extension NuGet packages on
 release tags, using the `NUGET_API_KEY` Actions secret. See
 [PdfObjectKit Docker Compose](src/PdfObjectKit/README.md#docker-compose) for local
 builds, published deployments, and CLI usage.

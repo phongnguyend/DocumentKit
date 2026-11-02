@@ -24,6 +24,7 @@ jobs:
       - run: sudo apt-get update && sudo apt-get install -y libfontconfig1 fonts-dejavu-core fonts-liberation
       - run: dotnet build src/DocxObjectKit/DocxObjectKit.slnx -c Release
       - run: dotnet run --project src/DocxObjectKit/DocxObjectKit.Tests -c Release --no-build
+      - run: dotnet run --project src/DocxObjectKit/DocxObjectKit.Extensions.Markdown.Tests -c Release --no-build
       - run: dotnet run --project src/DocxObjectKit/DocxObjectKit.Extensions.Pdf.Tests -c Release --no-build
       - name: Build playground and run browser tests
         working-directory: src/DocxObjectKit/DocxObjectKit.Playground.Ui

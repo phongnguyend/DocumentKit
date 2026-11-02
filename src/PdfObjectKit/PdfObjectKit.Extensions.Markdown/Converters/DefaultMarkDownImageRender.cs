@@ -2,7 +2,7 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using PdfObjectKit.Models;
 
-namespace PdfObjectKit.Converters;
+namespace PdfObjectKit.Extensions.Markdown;
 
 /// <summary>Renders image metadata as a labeled, fenced JSON block.</summary>
 public static class DefaultMarkDownImageRender

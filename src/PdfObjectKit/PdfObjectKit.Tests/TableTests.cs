@@ -1,3 +1,4 @@
+using PdfObjectKit.Extensions.Markdown;
 using PdfObjectKit.Analysis;
 using System.Text;
 using PdfObjectKit.Converters;

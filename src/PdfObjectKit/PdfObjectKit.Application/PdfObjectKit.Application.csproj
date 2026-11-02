@@ -8,4 +8,7 @@
   <ItemGroup>
     <ProjectReference Include="../PdfObjectKit/PdfObjectKit.csproj" />
   </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="../PdfObjectKit.Extensions.Markdown/PdfObjectKit.Extensions.Markdown.csproj" />
+  </ItemGroup>
 </Project>

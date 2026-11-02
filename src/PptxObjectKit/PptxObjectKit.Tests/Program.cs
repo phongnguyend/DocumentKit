@@ -2,11 +2,12 @@ using System.IO.Compression;
 using System.Text;
 using System.Xml.Linq;
 using PptxObjectKit.Application;
-using PptxObjectKit.Converters;
+using PptxObjectKit.Extensions.Markdown;
 using PptxObjectKit.Editors;
 using PptxObjectKit.Extractors;
 using PptxObjectKit.Readers;
 using PptxObjectKit.Writers;
+
 
 var checks = 0;
 void Check(bool condition, string message)
@@ -50,10 +51,6 @@ Check(PptxSlideExtractor.Extract(deleted).Slides.Single().Title == "Second slide
 Reject(() => PptxSlideEditor.Delete(deleted, 1));
 Reject(() => PptxSlideEditor.Reorder(document, [1, 1]));
 Reject(() => PptxSlideEditor.UpdateText(document, 1, "missing", "Text"));
-var markdown = PptxMarkdownConverter.Convert(edited);
-Check(markdown.Contains("Changed title") && markdown.Contains("Second paragraph") && markdown.Contains("# Slide 2:"), "Markdown paragraphs and order");
-var escaped = PptxSlideEditor.UpdateText(document, 1, "2", "<script>alert(1)</script>");
-Check(!PptxMarkdownConverter.Convert(escaped).Contains("<script>"), "Escape HTML in Markdown");
 Reject(() => PptxReader.Read([1, 2, 3]));
 byte[] AddPart(string name)
 {
@@ -68,48 +65,7 @@ byte[] AddPart(string name)
 }
 Reject(() => PptxReader.Read(AddPart("../unsafe.xml")));
 Reject(() => PptxSlideEditor.Delete(PptxReader.Read(AddPart("_xmlsignatures/sig1.xml")), 1));
-// Exercise Markdown content beyond plain text without relying on private documents.
-using var richPackage = new MemoryStream();
-richPackage.Write(bytes);
-using (var archive = new ZipArchive(richPackage, ZipArchiveMode.Update, true))
-{
-    void Put(string name, string xml)
-    {
-        archive.GetEntry(name)?.Delete();
-        using var writer = new StreamWriter(archive.CreateEntry(name).Open(), new UTF8Encoding(false));
-        writer.Write(xml);
-    }
-    var slideXml = Encoding.UTF8.GetString(document.GetPart("ppt/slides/slide1.xml"));
-    slideXml = slideXml.Replace("</p:spTree>", """
-        <p:graphicFrame><a:graphic><a:graphicData><a:tbl><a:tr>
-        <a:tc><a:txBody><a:p><a:r><a:t>Cell | one</a:t></a:r></a:p></a:txBody></a:tc>
-        <a:tc><a:txBody><a:p><a:r><a:t>Cell two</a:t></a:r></a:p></a:txBody></a:tc>
-        </a:tr></a:tbl></a:graphicData></a:graphic></p:graphicFrame>
-        <p:pic><p:blipFill><a:blip xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" r:embed="picture"/></p:blipFill></p:pic></p:spTree>
-        """);
-    Put("ppt/slides/slide1.xml", slideXml);
-    Put("ppt/slides/_rels/slide1.xml.rels", """
-        <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
-        <Relationship Id="notes" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/notesSlide" Target="../notesSlides/notesSlide1.xml"/>
-        <Relationship Id="picture" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="../media/image.png"/>
-        </Relationships>
-        """);
-    Put("ppt/notesSlides/notesSlide1.xml", """
-        <p:notes xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main">
-        <p:cSld><p:spTree><p:sp><p:nvSpPr><p:nvPr><p:ph type="body"/></p:nvPr></p:nvSpPr>
-        <p:txBody><a:p><a:r><a:t>Speaker details</a:t></a:r></a:p></p:txBody></p:sp></p:spTree></p:cSld></p:notes>
-        """);
-    using var image = archive.CreateEntry("ppt/media/image.png").Open();
-    image.Write(Convert.FromBase64String("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jQ1sAAAAASUVORK5CYII="));
-}
-var richDocument = PptxReader.Read(richPackage.ToArray());
-var richMarkdown = PptxMarkdownConverter.Convert(richDocument);
-Check(richMarkdown.Contains("Cell \\| one | Cell two"), "Markdown table cell escaping");
-Check(richMarkdown.Contains("data:image/png;base64,"), "Markdown embedded picture");
-Check(richMarkdown.Contains("Speaker details"), "Markdown speaker notes");
-var plainMarkdown = PptxMarkdownConverter.Convert(richDocument, new(false, false));
-Check(!plainMarkdown.Contains("Speaker details") && !plainMarkdown.Contains("data:image"), "Markdown options exclude notes and images");
-var png = richDocument.GetPart("ppt/media/image.png");
+var png = Convert.FromBase64String("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jQ1sAAAAASUVORK5CYII=");
 var withImage = PptxImageEditor.Edit(document, 1, "", "add-image", png, 20, 30, 100, 80);
 var imageInfo = PptxSlideExtractor.Extract(withImage).Slides[0].Images.Single();
 Check(imageInfo.X == 20 && imageInfo.Width == 100, "Inserted image geometry");
@@ -178,7 +134,7 @@ using (var archive = new ZipArchive(transformedPackage, ZipArchiveMode.Update, t
 }
 Reject(() => PptxImageOcrEditor.Apply(PptxReader.Read(transformedPackage.ToArray()), 1, imageInfo.Id, ocrLines));
 Reject(() => PptxImageOcrEditor.Apply(PptxReader.Read(AddPart("_xmlsignatures/sig1.xml")), 1, imageInfo.Id, ocrLines));
-var duplicate = PptxSlideEditor.Duplicate(richDocument, 1);
+var duplicate = PptxSlideEditor.Duplicate(RichPresentationFixture.Create(bytes), 1);
 var duplicateRoundTrip = PptxSlideExtractor.Extract(PptxReader.Read(PptxWriter.Write(duplicate)));
 Check(duplicateRoundTrip.Slides.Count == 3 && duplicateRoundTrip.Slides[0].Title == duplicateRoundTrip.Slides[1].Title, "Duplicate inserted immediately after source");
 Check(duplicateRoundTrip.Slides[0].PartName != duplicateRoundTrip.Slides[1].PartName && duplicateRoundTrip.Slides.Select(slide => slide.Id).Distinct().Count() == 3, "Duplicate has independent part and unique slide ID");

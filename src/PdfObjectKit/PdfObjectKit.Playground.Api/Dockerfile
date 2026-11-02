@@ -4,6 +4,7 @@ COPY Directory.Build.props ./
 COPY PdfObjectKit/PdfObjectKit.csproj PdfObjectKit/
 COPY PdfObjectKit.Extensions.Docx/PdfObjectKit.Extensions.Docx.csproj PdfObjectKit.Extensions.Docx/
 COPY PdfObjectKit.Extensions.Pptx/PdfObjectKit.Extensions.Pptx.csproj PdfObjectKit.Extensions.Pptx/
+COPY PdfObjectKit.Extensions.Markdown/PdfObjectKit.Extensions.Markdown.csproj PdfObjectKit.Extensions.Markdown/
 COPY PdfObjectKit.Application/PdfObjectKit.Application.csproj PdfObjectKit.Application/
 COPY PdfObjectKit.Playground.Api/PdfObjectKit.Playground.Api.csproj PdfObjectKit.Playground.Api/
 RUN dotnet restore PdfObjectKit.Playground.Api/PdfObjectKit.Playground.Api.csproj

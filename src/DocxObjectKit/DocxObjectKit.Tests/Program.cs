@@ -1,8 +1,8 @@
 using DocxObjectKit.Readers;
 using DocxObjectKit.Writers;
 using DocxObjectKit.Editors;
-using DocxObjectKit.Converters;
 using static DocxObjectKit.Models.DocxNamespaces;
+
 
 var count = 0;
 void Check(bool value, string message)
@@ -36,10 +36,6 @@ Check(edited.ReadXml("word/document.xml").Descendants(W + "t").First().Value == 
 var roundTrip = DocxReader.Read(DocxWriter.Write(edited));
 Check(source.GetPart("customXml/preserved.xml").SequenceEqual(roundTrip.GetPart("customXml/preserved.xml")), "Unknown parts were not preserved.");
 Check(source.GetPart("word/styles.xml").SequenceEqual(roundTrip.GetPart("word/styles.xml")), "Styles changed.");
-var markdown = DocxMarkdownConverter.Convert(source);
-Check(markdown.Contains("# Document toolkit sample") && markdown.Contains("**Red bold text**"), "Markdown headings or formatting missing.");
-Check(markdown.Contains("| Feature | Status |") && markdown.Contains("data:image/png;base64,"), "Markdown tables/images missing.");
-Check(!DocxMarkdownConverter.Convert(source, false).Contains("data:image"), "Image exclusion ignored.");
 var image = source.GetPart("word/media/sample.png");
 var replaced = DocxEditor.Image(source, "replace-image", "i0", image, 0, 0, 100, 50);
 var pictures = DocxEditor.Pictures(replaced.ReadXml("word/document.xml")).ToArray();

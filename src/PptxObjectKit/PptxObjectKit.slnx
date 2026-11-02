@@ -6,4 +6,6 @@
   <Project Path="PptxObjectKit.Tests/PptxObjectKit.Tests.csproj" />
   <Project Path="PptxObjectKit.Extensions.Pdf/PptxObjectKit.Extensions.Pdf.csproj" />
   <Project Path="PptxObjectKit.Extensions.Pdf.Tests/PptxObjectKit.Extensions.Pdf.Tests.csproj" />
+  <Project Path="PptxObjectKit.Extensions.Markdown/PptxObjectKit.Extensions.Markdown.csproj" />
+  <Project Path="PptxObjectKit.Extensions.Markdown.Tests/PptxObjectKit.Extensions.Markdown.Tests.csproj" />
 </Solution>
