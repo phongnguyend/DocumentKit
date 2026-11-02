@@ -101,6 +101,9 @@ jobs:
     - name: Test PowerPoint extension
       run: dotnet run --project PdfObjectKit.Extensions.Pptx.Tests --configuration Release
 
+    - name: Test Word extension
+      run: dotnet run --project PdfObjectKit.Extensions.Docx.Tests --configuration Release
+
     - name: Test Markdown snapshot
       run: dotnet test PdfObjectKit.SnapshotTests/PdfObjectKit.SnapshotTests.csproj --configuration Release
 
@@ -119,6 +122,7 @@ jobs:
         path: |
           src/PdfObjectKit/PdfObjectKit/nupkg/*.nupkg
           src/PdfObjectKit/PdfObjectKit.Extensions.Pptx/nupkg/*.nupkg
+          src/PdfObjectKit/PdfObjectKit.Extensions.Docx/nupkg/*.nupkg
 
     - name: Publish PdfObjectKit to NuGet
       if: startsWith(github.ref, 'refs/tags/releases/pdfobjectkit/v')
@@ -130,6 +134,10 @@ jobs:
           --source https://api.nuget.org/v3/index.json \
           --skip-duplicate
         dotnet nuget push "PdfObjectKit.Extensions.Pptx/nupkg/*.nupkg" \
+          --api-key "$NUGET_API_KEY" \
+          --source https://api.nuget.org/v3/index.json \
+          --skip-duplicate
+        dotnet nuget push "PdfObjectKit.Extensions.Docx/nupkg/*.nupkg" \
           --api-key "$NUGET_API_KEY" \
           --source https://api.nuget.org/v3/index.json \
           --skip-duplicate

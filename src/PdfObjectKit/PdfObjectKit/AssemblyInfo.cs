@@ -5,3 +5,7 @@ using System.Runtime.CompilerServices;
 [assembly: InternalsVisibleTo("PdfObjectKit.Extensions.Pptx")]
 
 [assembly: InternalsVisibleTo("PdfObjectKit.Extensions.Pptx.Tests")]
+
+[assembly: InternalsVisibleTo("PdfObjectKit.Extensions.Docx")]
+
+[assembly: InternalsVisibleTo("PdfObjectKit.Extensions.Docx.Tests")]

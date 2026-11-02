@@ -1,0 +1,26 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>$(CurrentTargetFramework)</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <Version>$(CurrentVersion)</Version>
+    <PackageOutputPath>./nupkg</PackageOutputPath>
+    <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
+    <PackageId>PdfObjectKit.Extensions.Docx</PackageId>
+    <Authors>Phong Nguyen</Authors>
+    <Description>Editable Word export for PdfObjectKit, including paragraphs, tables and images.</Description>
+    <PackageTags>pdf;docx;word;converter</PackageTags>
+    <PackageProjectUrl>https://github.com/phongnguyend/DocumentKit/tree/main/src/PdfObjectKit</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/phongnguyend/DocumentKit</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <IsPackable>true</IsPackable>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../PdfObjectKit/PdfObjectKit.csproj" />
+    <PackageReference Include="StbImageSharp" Version="2.30.16" />
+    <None Include="README.md" Pack="true" PackagePath="/" />
+    <None Include="../../../LICENSE" Pack="true" PackagePath="/" />
+  </ItemGroup>
+</Project>

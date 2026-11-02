@@ -1349,3 +1349,33 @@ Page extraction retries the combined content-stream bytes when a text operand, a
 PowerPoint export includes a **Preview** button in the conversion dialog. It renders the generated PPTX with the selected export options, with previous/next slide navigation. Changing options clears the old preview; downloading uses the same converted bytes. The browser preview supports the exporter's text, images, vector paths, gradients, rotation and opacity; browser font metrics can differ from Microsoft PowerPoint.
 
 The PowerPoint preview offers **Canvas** and **Selectable text** modes. Selectable text adds an aligned browser text-selection layer for copying text while keeping canvas visuals unchanged. This does not edit the slide or alter the downloaded PPTX.
+
+## Export editable Word
+
+Choose **Document > Export Word** in the playground, select all pages or the current
+page, and click **Convert to Word**, then **Download DOCX**. Pictures and source page
+breaks can be included or omitted. Export uses the current saved document and leaves
+the source PDF unchanged.
+
+The optional [PdfObjectKit.Extensions.Docx](PdfObjectKit.Extensions.Docx/README.md)
+package provides `PdfDocxConverter.Convert(document, options, cancellationToken)`.
+It exports editable paragraphs with font names/sizes and inferred bold/italic,
+headings, literal list markers, heuristic tables, and supported JPEG/PNG pictures.
+The playground endpoint is `POST /api/documents/docx?options={...}` with PDF bytes
+and `Content-Type: application/pdf`. Options are `pageNumbers` (one-based),
+`includeImages`, and `pageBreaks`. It returns Base64 DOCX bytes, content counts,
+and conversion notes. At most 100 source pages and 20 MB output are allowed in
+this playground endpoint.
+
+This export prioritizes editing and reading order, not fixed-layout reproduction.
+Word uses Letter pages and reflows content; page counts can change. Fonts are not
+embedded; colors, vector drawings, image clipping/rotation, vertical table merges,
+interactive features and metadata are not preserved. Full source image pixels may
+include content hidden by PDF clipping. Scans require OCR for editable text. Check
+conversion notes and review the result before sharing; export is not redaction.
+
+Run extension tests with:
+
+```powershell
+dotnet run --project src/PdfObjectKit/PdfObjectKit.Extensions.Docx.Tests -c Release
+```

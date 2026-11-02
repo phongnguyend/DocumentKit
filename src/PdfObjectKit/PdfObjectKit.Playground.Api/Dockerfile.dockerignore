@@ -15,3 +15,5 @@ PdfObjectKit.SnapshotTests
 PdfObjectKit.Demo
 
 PdfObjectKit.Extensions.Pptx.Tests
+
+PdfObjectKit.Extensions.Docx.Tests

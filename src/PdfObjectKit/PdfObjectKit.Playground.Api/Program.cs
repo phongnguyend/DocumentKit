@@ -273,6 +273,25 @@ Func<HttpRequest, CancellationToken, Task<IResult>> inspectDocument = async (req
         {
             return Results.Problem("Unlock this encrypted PDF before opening it in the playground.", statusCode: 401);
         }
+        if (request.Path == "/api/documents/docx")
+        {
+            var json = request.Query["options"].ToString();
+            if (json.Length > 16384)
+            {
+                return Results.Problem("Word options exceed the size limit.", statusCode: 400);
+            }
+            var options = string.IsNullOrEmpty(json) ? new PdfObjectKit.Options.PdfDocxOptions()
+                : JsonSerializer.Deserialize<PdfObjectKit.Options.PdfDocxOptions>(json, new JsonSerializerOptions(JsonSerializerDefaults.Web)
+                {
+                    UnmappedMemberHandling = JsonUnmappedMemberHandling.Disallow
+                }) ?? throw new ArgumentException("Provide a Word options object.");
+            var result = PdfDocxConverter.Convert(document, options, cancellation);
+            if (result.Bytes.Length > maxBytes)
+            {
+                return Results.Problem("The Word export exceeds the playground's 20 MB limit.", statusCode: 422);
+            }
+            return Results.Ok(new { base64 = Convert.ToBase64String(result.Bytes), result.SourcePageCount, result.ParagraphCount, result.TableCount, result.ImageCount, result.Warnings });
+        }
         if (request.Path == "/api/documents/pptx")
         {
             var json = request.Query["options"].ToString();
@@ -408,7 +427,7 @@ Func<HttpRequest, CancellationToken, Task<IResult>> inspectDocument = async (req
     }
     catch (Exception ex) when (ex is InvalidDataException or NotSupportedException or FormatException or ArgumentException or OverflowException or CryptographicException or JsonException)
     {
-        var operation = request.Path == "/api/documents/pptx" ? "export PowerPoint from" : request.Path == "/api/documents/markdown" ? "convert" : request.Path == "/api/documents/flatten" ? "flatten" : request.Path == "/api/documents/split" ? "split" : request.Path == "/api/documents/extract" ? "extract pages from" : "inspect";
+        var operation = request.Path == "/api/documents/docx" ? "export Word from" : request.Path == "/api/documents/pptx" ? "export PowerPoint from" : request.Path == "/api/documents/markdown" ? "convert" : request.Path == "/api/documents/flatten" ? "flatten" : request.Path == "/api/documents/split" ? "split" : request.Path == "/api/documents/extract" ? "extract pages from" : "inspect";
         return Results.Problem($"Cannot {operation} this PDF: {ex.Message}", statusCode: 422);
     }
     finally
@@ -421,6 +440,7 @@ app.MapPost("/api/documents/split", inspectDocument);
 app.MapPost("/api/documents/extract", inspectDocument);
 app.MapPost("/api/documents/markdown", inspectDocument);
 app.MapPost("/api/documents/pptx", inspectDocument);
+app.MapPost("/api/documents/docx", inspectDocument);
 app.MapPost("/api/documents/render", inspectDocument);
 app.MapPost("/api/documents/image", inspectDocument);
 app.MapPost("/api/documents/search", inspectDocument);

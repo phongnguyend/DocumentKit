@@ -1,8 +1,11 @@
 # DocumentKit
 
+Document libraries, conversion services, CLIs, and browser playgrounds built with
+.NET 10 and React. Each solution has its own build workflow and setup instructions.
+
 - [DocxObjectKit](src/DocxObjectKit/README.md): inspect, edit and preview Word documents, manage text and images, extract Markdown, and export PDFs with a native .NET engine.
 - [PptxObjectKit](src/PptxObjectKit/README.md): inspect, edit and preview PowerPoint presentations, manage slides, text and images, extract Markdown, and export PDFs with a native .NET engine.
-- [PdfObjectKit](src/PdfObjectKit/README.md): inspect, edit and render PDFs; manage pages, text, images, forms and annotations; extract Markdown; and export editable PowerPoint slides.
+- [PdfObjectKit](src/PdfObjectKit/README.md): inspect, edit and render PDFs; manage pages, text, images, forms and annotations; extract Markdown; and export editable Word documents and PowerPoint slides.
 - [HtmlToPdf](src/HtmlToPdf/README.md): convert HTML files and webpage URLs to PDF using Chrome, Playwright, or PuppeteerSharp.
 - [ExcelToPdf](src/ExcelToPdf/README.md): convert Excel workbooks to PDF using LibreOffice.
 - [WordToPdf](src/WordToPdf/README.md): convert Word documents to PDF using LibreOffice or the native DocxObjectKit engine.
@@ -10,26 +13,36 @@
 
 ## Build workflows
 
-The independent [HtmlToPdf](.github/workflows/htmltopdf.yml),
-[ExcelToPdf](.github/workflows/exceltopdf.yml),
-[WordToPdf](.github/workflows/wordtopdf.yml), and
-[PowerPointToPdf](.github/workflows/powerpointtopdf.yml) GitHub Actions workflows run on
-pushes and pull requests that change their solution folder or workflow file.
-They can also be started manually from the Actions tab.
+GitHub Actions workflows run on pushes and pull requests matching their configured
+paths, and can also be started manually from the Actions tab. All use .NET 10;
+browser-test jobs also use Node.js 22 and Playwright.
 
-Each workflow restores and builds its entire solution in Release mode using
-.NET 10, then builds all its Dockerfiles for Linux AMD64, including the CLI,
-API, proxy, and React playground images. Docker builds use separate cache scopes
-for each image. Branch and pull-request builds tag images locally with `:ci`.
-Release-tag runs publish the same built images to Docker Hub.
+| Workflow | Build and validation | Release publishing |
+| --- | --- | --- |
+| [DocxObjectKit](.github/workflows/docxobjectkit.yml) | Release solution build; package/edit and native PDF tests; UI build and browser tests | Not configured |
+| [PptxObjectKit](.github/workflows/pptxobjectkit.yml) | Release solution build; core and native PDF tests; UI build and browser tests; Compose image builds | Not configured |
+| [PdfObjectKit](.github/workflows/pdfobjectkit.yml) | Core, Word and PowerPoint extension, Markdown snapshot, CLI and UI-helper tests; UI build and browser tests; Docker image builds | NuGet packages and Docker images |
+| [HtmlToPdf](.github/workflows/htmltopdf.yml) | Release solution build; Docker image builds; URL and HTML conversion integration tests for the engine APIs | Docker images |
+| [ExcelToPdf](.github/workflows/exceltopdf.yml) | Release solution build and Docker image builds | Docker images |
+| [WordToPdf](.github/workflows/wordtopdf.yml) | Release solution build and Docker image builds, including the native DocxObjectKit API | Docker images |
+| [PowerPointToPdf](.github/workflows/powerpointtopdf.yml) | Release solution build; CLI and API conversion checks; UI build and browser tests; Docker image builds, including the native PptxObjectKit API | Docker images |
+
+WordToPdf also watches changes to its DocxObjectKit engine dependencies, and
+PowerPointToPdf watches the corresponding PptxObjectKit dependencies. The workflow
+files define the exact path filters, test commands, and uploaded diagnostics.
 
 ### Release Docker images
 
-The [PdfObjectKit workflow](.github/workflows/pdfobjectkit.yml) also builds and
-publishes its playground API, UI, and CLI images using the same credentials and
-version/latest tagging policy. Its existing snapshot tests and NuGet release
-remain enabled. See [PdfObjectKit Docker Compose](src/PdfObjectKit/README.md#docker-compose)
-for local builds, published deployments, and CLI usage.
+HtmlToPdf, ExcelToPdf, WordToPdf, PowerPointToPdf, and PdfObjectKit build their
+workflow image matrices for Linux AMD64. Each image has a separate build-cache
+scope. Branch and pull-request builds use local `:ci` tags; release-tag runs
+publish the built images to Docker Hub. DocxObjectKit and PptxObjectKit currently
+provide local Compose builds without standalone Docker Hub release publishing.
+
+PdfObjectKit also publishes its core, Word-extension, and PowerPoint-extension NuGet packages on
+release tags, using the `NUGET_API_KEY` Actions secret. See
+[PdfObjectKit Docker Compose](src/PdfObjectKit/README.md#docker-compose) for local
+builds, published deployments, and CLI usage.
 
 Configure these repository **Actions secrets**:
 
@@ -69,19 +82,30 @@ finish publishing that version. Manual dispatch on a release tag also publishes;
 manual dispatch on a branch only builds.
 
 For local .NET and service-image builds, run these commands from the relevant
-solution folder (replace `HtmlToPdf` with `ExcelToPdf` `WordToPdf`, or `PowerPointToPdf`):
+solution folder (replace `HtmlToPdf` with the solution name):
 
 ```powershell
 dotnet build HtmlToPdf.slnx --configuration Release
 docker compose build
 ```
 
-Compose builds service images; the workflows additionally build CLI images.
+Compose builds the services declared by each solution. The release workflow
+matrices additionally include CLI images where available.
+
+For local object-kit playgrounds, run `docker compose up --build` from
+`src/DocxObjectKit`, `src/PptxObjectKit`, or `src/PdfObjectKit`:
+
+| Playground | Local URL | Instructions |
+| --- | --- | --- |
+| DocxObjectKit | http://localhost:8126 | [Setup and native layout capabilities](src/DocxObjectKit/README.md) |
+| PptxObjectKit | http://localhost:8124 | [Setup and presentation features](src/PptxObjectKit/README.md) |
+| PdfObjectKit | http://localhost:8074 | [Setup and PDF features](src/PdfObjectKit/README.md) |
 
 ### Run published Docker images
 
-Each solution includes a standalone `compose.published.yaml` that pulls its
-engine APIs, proxy, and playground from Docker Hub without building locally:
+The four conversion-service solutions and PdfObjectKit include a
+`compose.published.yaml` that pulls their services from Docker Hub without local
+builds. For example:
 
 ```powershell
 cd src/ExcelToPdf # Or src/HtmlToPdf or src/WordToPdf or src/PowerPointToPdf from the repository root
@@ -107,7 +131,8 @@ Images default to `latest` and are pulled on every `up` to pick up republished
 tags. To pin a release, set `IMAGE_TAG=1.2.3` in `.env` before running the command;
 use the image version without the Git tag prefix or `v`.
 
-The playgrounds are available at http://localhost:8084 (HTML),
+The published playgrounds are available at http://localhost:8074 (PdfObjectKit),
+http://localhost:8084 (HTML),
 http://localhost:8094 (Excel), http://localhost:8104 (Word), and
 http://localhost:8114 (PowerPoint).
 Published Compose uses the same project names and ports as local Compose, so
