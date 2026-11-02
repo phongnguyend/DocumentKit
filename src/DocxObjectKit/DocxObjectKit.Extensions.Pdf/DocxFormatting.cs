@@ -8,6 +8,7 @@ public sealed partial class DocxLayout
 {
     private XDocument? numbering;
     private readonly Dictionary<string, int[]> counters = new();
+    private readonly Dictionary<string, bool[]> initializedCounters = new();
     private XDocument? theme;
 
     private static void MergeProperty(XElement target, XElement source)
@@ -55,7 +56,7 @@ public sealed partial class DocxLayout
         return "Calibri";
     }
 
-    private XElement? NumberingLevel(XElement properties)
+    private XElement? NumberingLevel(XElement properties, int? requestedLevel = null)
     {
         var numProperties = properties.Element(W + "numPr");
         var id = Value(numProperties?.Element(W + "numId"));
@@ -65,12 +66,15 @@ public sealed partial class DocxLayout
         }
         numbering ??= document.ReadXml("word/numbering.xml");
         var num = numbering.Root!.Elements(W + "num").FirstOrDefault(item => Value(item, "numId") == id);
-        var level = Value(numProperties?.Element(W + "ilvl")) ?? "0";
+        var level = requestedLevel?.ToString(CultureInfo.InvariantCulture) ?? Value(numProperties?.Element(W + "ilvl")) ?? "0";
         var levelOverride = num?.Elements(W + "lvlOverride").FirstOrDefault(item => Value(item, "ilvl") == level);
         var definition = levelOverride?.Element(W + "lvl") ?? numbering.Root.Elements(W + "abstractNum").FirstOrDefault(item => Value(item, "abstractNumId") == Value(num?.Element(W + "abstractNumId")))?.Elements(W + "lvl").FirstOrDefault(item => Value(item, "ilvl") == level);
         if (definition is null)
         {
-            warnings.Add("A numbering definition is missing; the marker is omitted.");
+            if (requestedLevel is null)
+            {
+                warnings.Add("A numbering definition is missing; the marker is omitted.");
+            }
             return null;
         }
         var copy = new XElement(definition);
@@ -90,9 +94,20 @@ public sealed partial class DocxLayout
         {
             values = new int[9];
             counters[id] = values;
+            initializedCounters[id] = new bool[9];
         }
-        values[level] = values[level] == 0 ? (int)Number(definition.Element(W + "start"), "val", 1) : values[level] + 1;
-        Array.Clear(values, level + 1, values.Length - level - 1);
+        var initialized = initializedCounters[id];
+        values[level] = initialized[level] ? values[level] + 1 : (int)Number(definition.Element(W + "start"), "val", 1);
+        initialized[level] = true;
+        for (var deeper = level + 1; deeper < values.Length; deeper++)
+        {
+            var deeperDefinition = NumberingLevel(properties, deeper);
+            var restart = (int)Number(deeperDefinition?.Element(W + "lvlRestart"), "val", deeper);
+            if (restart > 0 && level < restart)
+            {
+                initialized[deeper] = false;
+            }
+        }
         var format = Value(definition.Element(W + "numFmt")) ?? "decimal";
         if (format == "none")
         {
@@ -106,14 +121,46 @@ public sealed partial class DocxLayout
         var marker = Value(definition.Element(W + "lvlText")) ?? "%1.";
         for (var index = 0; index <= level; index++)
         {
-            var value = Math.Max(1, values[index]);
-            var text = format is "lowerLetter" or "upperLetter" && value <= 26 ? ((char)((format == "lowerLetter" ? 'a' : 'A') + value - 1)).ToString() : value.ToString(CultureInfo.InvariantCulture);
+            var referencedLevel = index == level ? definition : NumberingLevel(properties, index);
+            var value = !initialized[index] ? (int)Number(referencedLevel?.Element(W + "start"), "val", 1) : values[index];
+            var referencedFormat = Value(referencedLevel?.Element(W + "numFmt")) ?? "decimal";
+            var text = FormatNumber(value, Enabled(definition, "isLgl") ? "decimal" : referencedFormat);
             marker = marker.Replace("%" + (index + 1), text, StringComparison.Ordinal);
         }
-        if (format is not ("decimal" or "lowerLetter" or "upperLetter"))
+        if (format is not ("decimal" or "decimalZero" or "lowerLetter" or "upperLetter" or "lowerRoman" or "upperRoman"))
         {
             warnings.Add("Numbering format '" + format + "' uses decimal markers.");
         }
         return marker;
     }
+    private static string FormatNumber(int value, string format)
+    {
+        if (format is "lowerLetter" or "upperLetter" && value > 0)
+        {
+            var text = "";
+            while (value > 0)
+            {
+                value--;
+                text = (char)('A' + value % 26) + text;
+                value /= 26;
+            }
+            return format == "lowerLetter" ? text.ToLowerInvariant() : text;
+        }
+        if (format is "lowerRoman" or "upperRoman" && value is > 0 and < 4000)
+        {
+            var text = "";
+            (int Value, string Text)[] symbols = [(1000, "M"), (900, "CM"), (500, "D"), (400, "CD"), (100, "C"), (90, "XC"), (50, "L"), (40, "XL"), (10, "X"), (9, "IX"), (5, "V"), (4, "IV"), (1, "I")];
+            foreach (var symbol in symbols)
+            {
+                while (value >= symbol.Value)
+                {
+                    text += symbol.Text;
+                    value -= symbol.Value;
+                }
+            }
+            return format == "lowerRoman" ? text.ToLowerInvariant() : text;
+        }
+        return value.ToString(format == "decimalZero" ? "D2" : "D", CultureInfo.InvariantCulture);
+    }
+
 }

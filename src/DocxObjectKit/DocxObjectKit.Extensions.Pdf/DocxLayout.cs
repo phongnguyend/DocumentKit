@@ -9,13 +9,13 @@ namespace DocxObjectKit.Extensions.Pdf;
 
 public sealed record DocxBounds(double X, double Y, double Width, double Height, bool Grouped = false, double Rotation = 0);
 public sealed record DocxTextObject(string Id, string Name, string Text, DocxBounds Bounds);
-public sealed record DocxImageObject(string Id, string Name, string PartName, double X, double Y, double Width, double Height, bool Grouped = false, double Rotation = 0, bool ReadOnly = false);
-public sealed record DocxGlyphRun(string Id, string Text, double X, double Y, double Baseline, double Width, double Height, double FontSize, string FontFamily, string Color, bool Bold, bool Italic, bool Underline, string? Background = null);
+public sealed record DocxImageObject(string Id, string Name, string PartName, double X, double Y, double Width, double Height, bool Grouped = false, double Rotation = 0, bool ReadOnly = false, double CropLeft = 0, double CropTop = 0, double CropRight = 0, double CropBottom = 0, bool FlipH = false, bool FlipV = false);
+public sealed record DocxGlyphRun(string Id, string Text, double X, double Y, double Baseline, double Width, double Height, double FontSize, string FontFamily, string Color, bool Bold, bool Italic, bool Underline, string? Background = null, string? NoteKey = null, bool IsListMarker = false);
 public sealed record DocxBorder(double Width, string Color);
 
 public sealed record DocxRule(double X, double Y, double Width, double Height, string? Fill = null, double StrokeWidth = .5, string Color = "888888", DocxBorder?[]? Edges = null);
 public sealed record DocxPage(int Number, string Id, string Title, List<DocxTextObject> TextObjects, List<DocxImageObject> Images, List<DocxGlyphRun> Runs, List<DocxRule> Rules);
-public sealed record DocxLayoutResult(double Width, double Height, List<DocxPage> Pages, string[] Warnings, Dictionary<string, string> Media);
+public sealed record DocxLayoutResult(double Width, double Height, List<DocxPage> Pages, string[] Warnings, Dictionary<string, string> Media, Dictionary<int, int>? PageNumbers = null, Dictionary<int, string>? PageLabels = null);
 
 public sealed partial class DocxLayout : IDisposable
 {
@@ -71,15 +71,19 @@ public sealed partial class DocxLayout : IDisposable
         result = new(width, height, [], [], new());
         ConfigureColumns(section);
         page = NewPage();
+        LoadNotes();
     }
 
-    public DocxLayoutResult Build(CancellationToken cancellationToken = default)
+    private void BuildBody(CancellationToken cancellationToken)
     {
-        foreach (var block in Blocks(xml.Root!.Element(W + "body")!))
+        var blocks = Blocks(xml.Root!.Element(W + "body")!).ToArray();
+        for (var blockIndex = 0; blockIndex < blocks.Length; blockIndex++)
         {
+            var block = blocks[blockIndex];
             cancellationToken.ThrowIfCancellationRequested();
             if (block.Name == W + "p")
             {
+                KeepParagraphsTogether(blocks, blockIndex);
                 Paragraph(block, FlowLeft, FlowWidth);
             }
             else if (block.Name == W + "tbl")
@@ -114,19 +118,13 @@ public sealed partial class DocxLayout : IDisposable
                 }
             }
         }
-        RenderPageDecorations();
-        foreach (var feature in new[] { "footnoteReference", "endnoteReference", "oMath", "ins", "del" })
+        foreach (var feature in new[] { "oMath", "ins", "del" })
         {
             if (xml.Descendants().Any(item => item.Name.LocalName == feature && (feature != "cols" || Number(item, "num", 1) > 1)))
             {
                 warnings.Add($"Word feature '{feature}' is not fully rendered; its package data is preserved.");
             }
         }
-        for (var i = 0; i < result.Pages.Count; i++)
-        {
-            result.Pages[i] = result.Pages[i] with { Title = result.Pages[i].TextObjects.FirstOrDefault()?.Text ?? "Page " + (i + 1) };
-        }
-        return result with { Warnings = warnings.Order(StringComparer.Ordinal).ToArray() };
     }
 
     private DocxPage NewPage()
@@ -182,7 +180,11 @@ public sealed partial class DocxLayout : IDisposable
         {
             Overlay(tableFormatting?.Element(W + kind));
         }
-        Overlay(paragraph.Element(W + "pPr")?.Element(W + kind));
+        // Direct pPr/rPr formats the paragraph mark, not the text runs.
+        if (run is null)
+        {
+            Overlay(paragraph.Element(W + "pPr")?.Element(W + kind));
+        }
         if (kind == "pPr")
         {
             Overlay(paragraph.Element(W + kind));
@@ -209,6 +211,26 @@ public sealed partial class DocxLayout : IDisposable
         if (face is null || !string.Equals(face.FamilyName, family, StringComparison.OrdinalIgnoreCase))
         {
             face?.Dispose();
+            var substitute = family.ToLowerInvariant() switch
+            {
+                "arial" => "Liberation Sans",
+                "times new roman" => "Liberation Serif",
+                "courier new" => "Liberation Mono",
+                "calibri" => "Carlito",
+                "cambria" => "Caladea",
+                _ => null
+            };
+            if (substitute is not null)
+            {
+                var replacement = SKFontManager.Default.MatchFamily(substitute, new SKFontStyle(bold ? SKFontStyleWeight.Bold : SKFontStyleWeight.Normal, SKFontStyleWidth.Normal, italic ? SKFontStyleSlant.Italic : SKFontStyleSlant.Upright));
+                if (replacement is not null && string.Equals(replacement.FamilyName, substitute, StringComparison.OrdinalIgnoreCase))
+                {
+                    warnings.Add($"Font '{family}' substitutes metric-compatible '{substitute}'.");
+                    fonts[key] = replacement;
+                    return replacement;
+                }
+                replacement?.Dispose();
+            }
             if (family != fallback.FamilyName)
             {
                 warnings.Add($"Font '{family}' substitutes Noto Sans; wrapping may differ from Word.");
@@ -227,9 +249,16 @@ public sealed partial class DocxLayout : IDisposable
         var numberingLevel = NumberingLevel(properties);
         foreach (var property in numberingLevel?.Element(W + "pPr")?.Elements() ?? [])
         {
-            if (properties.Element(property.Name) is null)
+            var inherited = new XElement(property);
+            if (properties.Element(property.Name) is { } existing)
             {
-                properties.Add(new XElement(property));
+                var container = new XElement("format", inherited);
+                MergeProperty(container, existing);
+                existing.ReplaceWith(inherited);
+            }
+            else
+            {
+                properties.Add(inherited);
             }
         }
         var spacing = properties.Element(W + "spacing");
@@ -294,13 +323,22 @@ public sealed partial class DocxLayout : IDisposable
         var paragraphStyle = Properties(paragraph, "rPr");
         var paragraphSize = Math.Clamp(Number(paragraphStyle.Element(W + "sz"), "val", 22) / 2, 1, 400);
         using var paragraphFont = Font(FontFamily(paragraphStyle), Enabled(paragraphStyle, "b"), Enabled(paragraphStyle, "i"), paragraphSize);
-        var defaultAdvance = Value(spacing, "lineRule") == "exact" ? Number(spacing, "line", paragraphSize * 24) / 20 : paragraphFont.Spacing * Number(spacing, "line", 240) / 240;
+        var defaultAdvance = LineAdvance(paragraphFont, spacing, paragraphSize);
         var lineHeight = 0d;
+        var completedLines = 0;
+        var plannedBreak = measuringTable ? null : widowBreakAfter;
+        if (!measuringTable)
+        {
+            widowBreakAfter = null;
+        }
         void ContinueFlow(double requiredHeight)
         {
-            while (!measuringTable && frame is null && y + requiredHeight > result.Height - bottom && (y > columnTop || columnTop > top))
+            var breakForWidow = plannedBreak == completedLines && line.Count == 0;
+            while (!measuringTable && frame is null && (breakForWidow || y + requiredHeight > FlowLimit) && (y > columnTop || columnTop > top))
             {
                 AdvanceFlow();
+                breakForWidow = false;
+                plannedBreak = null;
                 var shift = FlowLeft - flowOrigin;
                 x += shift;
                 width = Math.Max(12, width + FlowWidth - flowWidth);
@@ -323,6 +361,7 @@ public sealed partial class DocxLayout : IDisposable
                 lineHeight = defaultAdvance;
             }
             ContinueFlow(lineHeight);
+            measuredLines?.Add((y, y + lineHeight));
             var alignment = Value(properties.Element(W + "jc"));
             var shift = alignment is "center" ? Math.Max(0, (width - offset) / 2) : alignment is "right" or "end" ? Math.Max(0, width - offset) : 0;
             var baseline = line.Select(piece => piece.Baseline).DefaultIfEmpty(0).Max();
@@ -331,6 +370,7 @@ public sealed partial class DocxLayout : IDisposable
                 page.Runs.Add(piece with { X = piece.X + shift, Y = y + baseline - piece.Baseline, Baseline = y + baseline });
             }
             y += lineHeight;
+            completedLines++;
             if (!measuringTable && frame is null)
             {
                 flowBottom = Math.Max(flowBottom, y);
@@ -339,7 +379,7 @@ public sealed partial class DocxLayout : IDisposable
             offset = 0;
             lineHeight = 0;
         }
-        void Add(string text, XElement run)
+        void Add(string text, XElement run, bool isMarker = false, string? noteKey = null)
         {
             var style = Properties(paragraph, "rPr", run);
             if (Enabled(style, "vanish"))
@@ -365,7 +405,7 @@ public sealed partial class DocxLayout : IDisposable
             {
                 warnings.Add("Complex-script shaping and bidirectional text are not yet supported.");
             }
-            var advance = Value(spacing, "lineRule") == "exact" ? Number(spacing, "line", size * 24) / 20 : font.Spacing * Number(spacing, "line", 240) / 240;
+            var advance = isMarker ? defaultAdvance : LineAdvance(font, spacing, size);
             foreach (var word in Regex.Split(text.Replace("\t", "    "), @"( +)").Where(item => item.Length > 0))
             {
                 var measured = font.MeasureText(word);
@@ -396,16 +436,45 @@ public sealed partial class DocxLayout : IDisposable
                         ContinueFlow(Math.Max(lineHeight, advance));
                     }
                     var height = Math.Max(size * 1.15, font.Metrics.Descent - font.Metrics.Ascent);
-                    line.Add(new(id, chunk, x + offset, 0, -font.Metrics.Ascent, measured, height, size, face.FamilyName, color, bold, italic, Enabled(style, "u"), Value(style.Element(W + "shd"), "fill")));
+                    line.Add(new(id, chunk, x + offset, 0, -font.Metrics.Ascent, measured, height, size, face.FamilyName, color, bold, italic, Enabled(style, "u"), Value(style.Element(W + "shd"), "fill"), noteKey, isMarker && noteKey is null));
                     offset += measured;
-                    lineHeight = Math.Max(lineHeight, advance);
+                    if (!isMarker)
+                    {
+                        lineHeight = Math.Max(lineHeight, advance);
+                    }
                 }
             }
         }
         if (numberingLevel is not null)
         {
-            Add(ListMarker(properties, numberingLevel) + " ", new XElement(W + "r"));
-            offset = Math.Max(0, offset);
+            var markerRun = new XElement(W + "r", numberingLevel.Element(W + "rPr") is { } markerProperties ? new XElement(markerProperties) : null);
+            var marker = ListMarker(properties, numberingLevel);
+            var markerStyle = Properties(paragraph, "rPr", markerRun);
+            using var markerFont = Font(FontFamily(markerStyle), Enabled(markerStyle, "b"), Enabled(markerStyle, "i"), paragraphSize);
+            if (Value(numberingLevel.Element(W + "numFmt")) == "bullet" && !markerFont.ContainsGlyphs(marker))
+            {
+                var fallbackProperties = markerRun.Element(W + "rPr");
+                if (fallbackProperties is null)
+                {
+                    fallbackProperties = new XElement(W + "rPr");
+                    markerRun.Add(fallbackProperties);
+                }
+                fallbackProperties.Elements(W + "rFonts").Remove();
+                fallbackProperties.Add(new XElement(W + "rFonts", new XAttribute(W + "ascii", fallback.FamilyName), new XAttribute(W + "hAnsi", fallback.FamilyName)));
+            }
+            Add(marker, markerRun, true);
+            var suffix = Value(numberingLevel.Element(W + "suff")) ?? "tab";
+            if (suffix == "space")
+            {
+                Add(" ", markerRun, true);
+            }
+            else if (suffix == "tab")
+            {
+                var stop = properties.Element(W + "tabs")?.Elements(W + "tab")
+                    .Where(item => Value(item) == "num" && Number(item, "pos") / 20 - Number(indent, "left") / 20 >= offset)
+                    .OrderBy(item => Number(item, "pos")).FirstOrDefault();
+                offset = stop is null ? Math.Max(0, offset + paragraphFont.MeasureText(" ")) : Number(stop, "pos") / 20 - Number(indent, "left") / 20;
+            }
         }
         foreach (var run in paragraph.Descendants(W + "r").Where(item => item.Ancestors(W + "p").FirstOrDefault() == paragraph && !item.Ancestors(W + "del").Any()))
         {
@@ -414,6 +483,18 @@ public sealed partial class DocxLayout : IDisposable
                 if (node.Name == W + "t")
                 {
                     Add(node.Value, run);
+                }
+                else if (node.Name == W + "footnoteReference" || node.Name == W + "endnoteReference")
+                {
+                    var key = node.Name.LocalName.Replace("Reference", "") + ":" + Value(node, "id");
+                    if (notes.TryGetValue(key, out var note))
+                    {
+                        Add("[" + note.Number + "]", run, true, key);
+                    }
+                    else
+                    {
+                        warnings.Add("A note reference has no matching note definition.");
+                    }
                 }
                 else if (node.Name == W + "tab")
                 {
@@ -459,15 +540,23 @@ public sealed partial class DocxLayout : IDisposable
                         flowWidth = FlowWidth;
                     }
                 }
-                else if (node.Name == W + "pict")
+                else if (node.Name == W + "object" || node.Name == W + "pict")
                 {
-                    floatingText.Add(node);
+                    if (node.Descendants().Any(item => item.Name.LocalName == "imagedata"))
+                    {
+                        Flush();
+                        LegacyPictures(node, x, width);
+                    }
+                    else
+                    {
+                        floatingText.Add(node);
+                    }
                 }
                 else if (node.Name == W + "drawing")
                 {
                     foreach (var picture in node.Elements())
                     {
-                        if (picture.Descendants(W + "txbxContent").Any())
+                        if (picture.Descendants(W + "txbxContent").Any() || IsLineShape(picture))
                         {
                             floatingText.Add(picture);
                         }
@@ -493,7 +582,14 @@ public sealed partial class DocxLayout : IDisposable
         var anchorY = page.Runs.Where(run => run.Id == id).Select(run => run.Y).DefaultIfEmpty(flowingY).Min();
         foreach (var drawing in floatingText)
         {
-            TextBoxes(drawing, x, anchorY, id);
+            if (IsLineShape(drawing))
+            {
+                LineShape(drawing, x, page.Runs.Any(run => run.Id == id) ? anchorY : y - pendingAfter - defaultAdvance);
+            }
+            else
+            {
+                TextBoxes(drawing, x, anchorY, id);
+            }
         }
         foreach (var target in result.Pages)
         {
@@ -551,7 +647,7 @@ public sealed partial class DocxLayout : IDisposable
                 var scale = Math.Min(1, Math.Min(available / width, (result.Height - top - bottom) / height));
                 width *= scale;
                 height *= scale;
-                if (!measuringTable && y + height > result.Height - bottom)
+                if (!measuringTable && y + height > FlowLimit)
                 {
                     var previousLeft = FlowLeft;
                     AdvanceFlow();
@@ -568,10 +664,21 @@ public sealed partial class DocxLayout : IDisposable
                 x = DrawingPosition(picture, "positionH", x, width);
                 imageY = DrawingPosition(picture, "positionV", y, height);
             }
-            if (picture.Descendants(A + "srcRect").Any())
+            var crop = picture.Descendants(A + "srcRect").FirstOrDefault();
+            double Crop(string side) => double.TryParse((string?)crop?.Attribute(side), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var value) && double.IsFinite(value) ? Math.Clamp(value / 100000, -10, 1) : 0;
+            var cropLeft = Crop("l");
+            var cropRight = Crop("r");
+            var cropTop = Crop("t");
+            var cropBottom = Crop("b");
+            if (1 - cropLeft - cropRight <= .00001 || 1 - cropTop - cropBottom <= .00001)
             {
-                warnings.Add("Image cropping is not yet applied in the native layout.");
+                warnings.Add("An image has an invalid crop rectangle and is omitted.");
+                return;
             }
+            var transform = picture.Descendants(A + "xfrm").FirstOrDefault();
+            var rotation = double.TryParse((string?)transform?.Attribute("rot"), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var angle) && double.IsFinite(angle) ? angle / 60000 % 360 : 0;
+            var flipH = (string?)transform?.Attribute("flipH") is "1" or "true";
+            var flipV = (string?)transform?.Attribute("flipV") is "1" or "true";
             var mime = codec.EncodedFormat switch
             {
                 SKEncodedImageFormat.Png => "image/png",
@@ -586,7 +693,7 @@ public sealed partial class DocxLayout : IDisposable
             {
                 absoluteDecorations.Add(id);
             }
-            page.Images.Add(new(id, (string?)picture.Element(WP + "docPr")?.Attribute("name") ?? "Image", part, x, imageY, width, height));
+            page.Images.Add(new(id, (string?)picture.Element(WP + "docPr")?.Attribute("name") ?? "Image", part, x, imageY, width, height, Rotation: rotation, CropLeft: cropLeft, CropTop: cropTop, CropRight: cropRight, CropBottom: cropBottom, FlipH: flipH, FlipV: flipV));
         }
         catch (Exception exception) when (exception is InvalidDataException or NotSupportedException)
         {

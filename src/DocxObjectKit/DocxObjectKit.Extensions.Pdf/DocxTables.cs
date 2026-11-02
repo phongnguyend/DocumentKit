@@ -26,10 +26,15 @@ public sealed partial class DocxLayout
         }
     }
 
-    private void Table(XElement table)
+    private void Table(XElement table, double? containerX = null, double? containerWidth = null, int depth = 0, int? rowLimit = null)
     {
-        var origin = FlowLeft;
-        var available = columnWidths.Length > 1 ? columnWidths.Min() : FlowWidth;
+        if (depth > 16)
+        {
+            throw new NotSupportedException("Nested tables exceed 16 levels.");
+        }
+        var origin = containerX ?? FlowLeft;
+        var available = containerWidth ?? (columnWidths.Length > 1 ? columnWidths.Min() : FlowWidth);
+        double ShiftX() => containerX.HasValue ? 0 : FlowLeft - origin;
         if (columnWidths.Distinct().Count() > 1)
         {
             warnings.Add("Tables in unequal columns use the narrowest column width.");
@@ -55,7 +60,7 @@ public sealed partial class DocxLayout
         var tableStyleName = Value(properties?.Element(W + "tblStyle"));
         var tableStyle = tableStyleName is not null && styles.TryGetValue(tableStyleName, out var foundStyle) ? foundStyle : null;
         var merges = new Dictionary<int, (DocxPage Page, int Rule)>();
-        var rows = table.Elements(W + "tr").ToArray();
+        var rows = table.Elements(W + "tr").Take(rowLimit ?? int.MaxValue).ToArray();
         var header = new DocxPage(0, "table-header", "", [], [], [], []);
         var headerHeight = 0d;
         var collectingHeader = true;
@@ -66,7 +71,7 @@ public sealed partial class DocxLayout
             {
                 return;
             }
-            var shiftX = FlowLeft - origin;
+            var shiftX = ShiftX();
             page.Runs.AddRange(header.Runs.Select(run => run with { X = run.X + shiftX, Y = run.Y + y, Baseline = run.Baseline + y }));
             page.Rules.AddRange(header.Rules.Select(rule => rule with { X = rule.X + shiftX, Y = rule.Y + y }));
             page.Images.AddRange(header.Images.Select(image => image with { X = image.X + shiftX, Y = image.Y + y }));
@@ -116,13 +121,16 @@ public sealed partial class DocxLayout
                 measuringTable = true;
                 try
                 {
-                    foreach (var paragraph in Blocks(cell).Where(item => item.Name == W + "p"))
+                    foreach (var block in Blocks(cell))
                     {
-                        Paragraph(paragraph, cellX + padLeft, Math.Max(12, cellWidth - padLeft - padRight), true);
-                    }
-                    if (cell.Elements(W + "tbl").Any())
-                    {
-                        warnings.Add("Nested table layout is not supported.");
+                        if (block.Name == W + "p")
+                        {
+                            Paragraph(block, cellX + padLeft, Math.Max(12, cellWidth - padLeft - padRight), true);
+                        }
+                        else if (block.Name == W + "tbl")
+                        {
+                            Table(block, cellX + padLeft, Math.Max(12, cellWidth - padLeft - padRight), depth + 1);
+                        }
                     }
                     cells.Add((scratch, y + padBottom, cellX, cellWidth, cellProperties, column, effectiveBorders));
                 }
@@ -141,7 +149,8 @@ public sealed partial class DocxLayout
             }
             var rowHeight = Math.Max(cells.Select(cell => cell.Height).DefaultIfEmpty(12).Max(), Number(row.Element(W + "trPr")?.Element(W + "trHeight"), "val") / 20);
             var pageCapacity = result.Height - top - bottom;
-            if (y + Math.Min(rowHeight, pageCapacity) > result.Height - bottom && y > top)
+            var cannotSplit = Enabled(row.Element(W + "trPr") ?? new XElement(W + "trPr"), "cantSplit");
+            if (!measuringTable && cannotSplit && rowHeight <= pageCapacity && y + rowHeight > FlowLimit && y > columnTop)
             {
                 NextTableRegion();
                 merges.Clear();
@@ -157,7 +166,42 @@ public sealed partial class DocxLayout
             double consumed = 0;
             while (consumed < rowHeight)
             {
-                var height = Math.Min(rowHeight - consumed, result.Height - bottom - y);
+                var height = measuringTable ? rowHeight - consumed : Math.Min(rowHeight - consumed, FlowLimit - y);
+                if (!measuringTable && consumed + height < rowHeight)
+                {
+                    var boundary = consumed + height;
+                    foreach (var cell in cells)
+                    {
+                        var padding = Value(cell.Properties.Element(W + "vAlign")) switch
+                        {
+                            "center" => Math.Max(0, (rowHeight - cell.Height) / 2),
+                            "bottom" => Math.Max(0, rowHeight - cell.Height),
+                            _ => 0
+                        };
+                        foreach (var run in cell.Content.Runs)
+                        {
+                            if (run.Y + padding < boundary && run.Y + padding + run.Height > boundary)
+                            {
+                                boundary = Math.Max(consumed, run.Y + padding);
+                            }
+                        }
+                        foreach (var image in cell.Content.Images)
+                        {
+                            if (image.Y < boundary && image.Y + image.Height > boundary && image.Height <= pageCapacity)
+                            {
+                                boundary = Math.Max(consumed, image.Y);
+                            }
+                        }
+                    }
+                    if (boundary <= consumed && y <= columnTop + headerHeight + .01)
+                    {
+                        throw new NotSupportedException("A table line or image cannot fit below the repeated header in one page region.");
+                    }
+                    if (boundary > consumed || y > columnTop)
+                    {
+                        height = boundary - consumed;
+                    }
+                }
                 if (height <= 0)
                 {
                     NextTableRegion();
@@ -172,15 +216,15 @@ public sealed partial class DocxLayout
                         "bottom" => Math.Max(0, rowHeight - cell.Height),
                         _ => 0
                     };
-                    var runs = cell.Content.Runs.Where(run => run.Y + padding >= consumed && run.Y + padding < consumed + height).Select(run => run with { X = run.X + FlowLeft - origin, Y = run.Y + padding - consumed + y, Baseline = run.Baseline + padding - consumed + y }).ToArray();
+                    var runs = cell.Content.Runs.Where(run => run.Y + padding >= consumed && run.Y + padding < consumed + height).Select(run => run with { X = run.X + ShiftX(), Y = run.Y + padding - consumed + y, Baseline = run.Baseline + padding - consumed + y }).ToArray();
                     page.Runs.AddRange(runs);
                     foreach (var group in runs.GroupBy(run => run.Id))
                     {
                         var original = cell.Content.TextObjects.First(item => item.Id == group.Key);
                         var minY = group.Min(item => item.Y);
-                        page.TextObjects.Add(original with { Bounds = original.Bounds with { X = original.Bounds.X + FlowLeft - origin, Y = minY, Height = group.Max(item => item.Y + item.Height) - minY, Grouped = true } });
+                        page.TextObjects.Add(original with { Bounds = original.Bounds with { X = original.Bounds.X + ShiftX(), Y = minY, Height = group.Max(item => item.Y + item.Height) - minY, Grouped = true } });
                     }
-                    page.Images.AddRange(cell.Content.Images.Where(image => image.Y >= consumed && image.Y < consumed + height).Select(image => image with { X = image.X + FlowLeft - origin, Y = image.Y - consumed + y, Grouped = true }));
+                    page.Images.AddRange(cell.Content.Images.Where(image => image.Y >= consumed && image.Y < consumed + height).Select(image => image with { X = image.X + ShiftX(), Y = image.Y - consumed + y, Grouped = true }));
                     var fill = Value(cell.Properties.Element(W + "shd"), "fill");
                     var cellBorders = cell.Properties.Element(W + "tcBorders");
                     DocxBorder? Edge(string side, string fallback)
@@ -208,7 +252,7 @@ public sealed partial class DocxLayout
                     }
                     else
                     {
-                        page.Rules.Add(new(cell.X + FlowLeft - origin, y, cell.Width, height, fill, 0, Edges: edges));
+                        page.Rules.Add(new(cell.X + ShiftX(), y, cell.Width, height, fill, 0, Edges: edges));
                         if (merge is not null)
                         {
                             merges[cell.Column] = (page, page.Rules.Count - 1);
@@ -218,6 +262,9 @@ public sealed partial class DocxLayout
                             merges.Remove(cell.Column);
                         }
                     }
+                    // Parent backgrounds precede nested borders/fills in paint order.
+                    page.Rules.AddRange(cell.Content.Rules.Where(rule => rule.Y < consumed + height && rule.Y + rule.Height > consumed)
+                        .Select(rule => rule with { X = rule.X + ShiftX(), Y = Math.Max(rule.Y, consumed) - consumed + y, Height = Math.Min(rule.Y + rule.Height, consumed + height) - Math.Max(rule.Y, consumed) }));
                 }
                 consumed += height;
                 y += height;

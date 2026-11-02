@@ -29,23 +29,7 @@ public static class DocxEditor
         }
         var xml = document.ReadXml("word/document.xml");
         var paragraph = Paragraph(xml, id);
-        if (paragraph.Descendants(W + "drawing").Any())
-        {
-            throw new NotSupportedException("Edit an image-containing paragraph through its image controls; replacing its text would remove drawings.");
-        }
-        var style = paragraph.Descendants(W + "rPr").FirstOrDefault();
-        paragraph.Elements().Where(item => item.Name != W + "pPr").Remove();
-        var run = new XElement(W + "r", style is null ? null : new XElement(style));
-        var lines = text.Replace("\r", "").Split('\n');
-        for (var i = 0; i < lines.Length; i++)
-        {
-            if (i > 0)
-            {
-                run.Add(new XElement(W + "br"));
-            }
-            run.Add(new XElement(W + "t", new XAttribute(XNamespace.Xml + "space", "preserve"), lines[i]));
-        }
-        paragraph.Add(run);
+        DocxRunEditor.Replace(paragraph, text.Replace("\r", ""));
         return document.WithXml("word/document.xml", xml);
     }
 

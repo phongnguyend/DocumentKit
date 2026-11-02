@@ -150,3 +150,53 @@ test('image picker draws, creates QR codes and replaces a selected image', async
   await expect(dialog).toHaveCount(0);
   await expect(page.locator('.canvas-host:visible [data-object-id^="i"]')).toHaveCount(3);
 });
+
+
+test('native canvas crops and rotates images with matching selection bounds', async ({ page }) => {
+  await page.goto('/');
+  const pixels = await page.evaluate(async () => {
+    const { createDocxPreview } = await import('/src/renderers/docxRenderer.ts');
+    const source = document.createElement('canvas');
+    source.width = 100;
+    source.height = 50;
+    const paint = source.getContext('2d');
+    paint.fillStyle = '#ff0000';
+    paint.fillRect(0, 0, 50, 50);
+    paint.fillStyle = '#0000ff';
+    paint.fillRect(50, 0, 50, 50);
+    const preview = await createDocxPreview({ width: 200, height: 200, warnings: [], media: { test: source.toDataURL() }, pages: [{ number: 1, id: 'test', title: '', textObjects: [], runs: [], rules: [], images: [{ id: 'i0', name: 'Synthetic', partName: 'test', x: 80, y: 80, width: 80, height: 40, rotation: 90, cropLeft: .5 }] }] });
+    const canvas = document.createElement('canvas');
+    canvas.width = 200;
+    canvas.height = 200;
+    const layer = document.createElement('div');
+    await preview.render(canvas, 1, new AbortController().signal, layer);
+    const context = canvas.getContext('2d');
+    return { rotated: Array.from(context.getImageData(120, 65, 1, 1).data), outside: Array.from(context.getImageData(85, 100, 1, 1).data), transform: layer.querySelector('[data-object-id="i0"]').style.transform };
+  });
+  expect(pixels.rotated).toEqual([0, 0, 255, 255]);
+  expect(pixels.outside).toEqual([255, 255, 255, 255]);
+  expect(pixels.transform).toBe('rotate(90deg)');
+});
+
+test('refresh TOC uses current heading pages and survives undo and download', async ({ page }) => {
+  const zip = await JSZip.loadAsync(await readFile(fixture));
+  const xml = await zip.file('word/document.xml').async('string');
+  zip.file('word/document.xml', xml.replace(/<w:body>[\s\S]*<\/w:body>/, `<w:body>
+    <w:sdt><w:sdtPr><w:docPartObj><w:docPartGallery w:val="Table of Contents"/></w:docPartObj></w:sdtPr><w:sdtContent><w:p><w:r><w:t>Stale contents</w:t></w:r></w:p></w:sdtContent></w:sdt>
+    <w:p><w:pPr><w:outlineLvl w:val="0"/><w:pageBreakBefore/></w:pPr><w:r><w:t>Current heading</w:t></w:r></w:p>
+    <w:sectPr><w:pgSz w:w="12240" w:h="15840"/><w:pgMar w:top="1440" w:bottom="1440" w:left="1440" w:right="1440"/></w:sectPr></w:body>`));
+  await page.goto('/');
+  await page.getByLabel('Open DOCX', { exact: true }).setInputFiles({ name: 'contents.docx', mimeType: 'application/octet-stream', buffer: await zip.generateAsync({ type: 'nodebuffer' }) });
+  await expect(page.locator('.canvas-host:visible .text-layer')).toContainText('Stale contents');
+  await menu(page, 'Refresh table of contents');
+  await expect(page.locator('.canvas-host:visible .text-layer')).toContainText('Current heading');
+  await expect(page.locator('.canvas-host:visible .text-layer')).not.toContainText('Stale contents');
+  const download = page.waitForEvent('download');
+  await page.getByRole('button', { name: 'Download DOCX', exact: true }).click();
+  const output = await JSZip.loadAsync(await readFile(await (await download).path()));
+  const updated = await output.file('word/document.xml').async('string');
+  expect(updated).toContain('PAGEREF');
+  expect(updated).toMatch(/<w:t>2<\/w:t>/);
+  await page.getByRole('button', { name: 'Undo', exact: true }).click();
+  await expect(page.locator('.canvas-host:visible .text-layer')).toContainText('Stale contents');
+});

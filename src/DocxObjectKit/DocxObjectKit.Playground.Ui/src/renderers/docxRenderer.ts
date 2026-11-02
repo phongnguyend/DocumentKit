@@ -1,6 +1,6 @@
 type Bounds = { x: number; y: number; width: number; height: number; grouped: boolean; rotation: number };
 type Run = { id: string; text: string; x: number; y: number; baseline: number; width: number; height: number; fontSize: number; fontFamily: string; color: string; bold: boolean; italic: boolean; underline: boolean; background?: string };
-export type DocxInspection = { width: number; height: number; warnings: string[]; media: Record<string, string>; pages: { number: number; id: string; title: string; notes?: string; textObjects: { id: string; name: string; text: string; bounds: Bounds }[]; images: ({ id: string; name: string; partName: string; readOnly?: boolean } & Bounds)[]; runs: Run[]; rules: (Bounds & { fill?: string; strokeWidth: number; color?: string; edges?: ({ width: number; color: string } | null)[] })[] }[] };
+export type DocxInspection = { width: number; height: number; warnings: string[]; media: Record<string, string>; pages: { number: number; id: string; title: string; notes?: string; textObjects: { id: string; name: string; text: string; bounds: Bounds }[]; images: ({ id: string; name: string; partName: string; readOnly?: boolean; cropLeft?: number; cropTop?: number; cropRight?: number; cropBottom?: number; flipH?: boolean; flipV?: boolean } & Bounds)[]; runs: Run[]; rules: (Bounds & { fill?: string; strokeWidth: number; color?: string; edges?: ({ width: number; color: string } | null)[] })[] }[] };
 
 export async function createDocxPreview(info: DocxInspection) {
   const pictures = new Map<string, Promise<HTMLImageElement>>();
@@ -68,7 +68,18 @@ export async function createDocxPreview(info: DocxInspection) {
       for (const image of page.images) {
         const decoded = await picture(image.partName);
         signal.throwIfAborted();
-        context.drawImage(decoded, image.x, image.y, image.width, image.height);
+        context.save();
+        context.translate(image.x + image.width / 2, image.y + image.height / 2);
+        context.rotate(image.rotation * Math.PI / 180);
+        context.scale(image.flipH ? -1 : 1, image.flipV ? -1 : 1);
+        context.translate(-image.width / 2, -image.height / 2);
+        context.beginPath();
+        context.rect(0, 0, image.width, image.height);
+        context.clip();
+        const expandedWidth = image.width / (1 - (image.cropLeft ?? 0) - (image.cropRight ?? 0));
+        const expandedHeight = image.height / (1 - (image.cropTop ?? 0) - (image.cropBottom ?? 0));
+        context.drawImage(decoded, -(image.cropLeft ?? 0) * expandedWidth, -(image.cropTop ?? 0) * expandedHeight, expandedWidth, expandedHeight);
+        context.restore();
       }
       for (const run of page.runs) {
         const family = run.fontFamily.replace(/["\\]/g, '');
@@ -96,7 +107,7 @@ export async function createDocxPreview(info: DocxInspection) {
           const box = document.createElement('div');
           box.dataset.objectId = object.id;
           box.className = 'document-object';
-          Object.assign(box.style, { position: 'absolute', left: `${object.x * scale}px`, top: `${object.y * scale}px`, width: `${Math.max(3, object.width) * scale}px`, height: `${Math.max(3, object.height) * scale}px` });
+          Object.assign(box.style, { position: 'absolute', left: `${object.x * scale}px`, top: `${object.y * scale}px`, width: `${Math.max(3, object.width) * scale}px`, height: `${Math.max(3, object.height) * scale}px`, transform: `rotate(${object.rotation ?? 0}deg)` });
           layer.append(box);
         }
       }

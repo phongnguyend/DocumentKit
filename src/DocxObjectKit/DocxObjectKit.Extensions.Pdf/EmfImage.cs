@@ -20,6 +20,25 @@ internal static class EmfImage
 
     public static byte[] Decode(byte[] bytes, double widthPoints, double heightPoints)
     {
+        try
+        {
+            try
+            {
+                return DecodePortable(bytes, widthPoints, heightPoints);
+            }
+            catch (NotSupportedException)
+            {
+                return EmfDiagram.Decode(bytes, widthPoints, heightPoints);
+            }
+        }
+        catch (NotSupportedException) when (OperatingSystem.IsWindows())
+        {
+            return WindowsEmfImage.Decode(bytes, widthPoints, heightPoints);
+        }
+    }
+
+    private static byte[] DecodePortable(byte[] bytes, double widthPoints, double heightPoints)
+    {
         if (!IsEmf(bytes) || Read(bytes, 48) != bytes.Length)
         {
             throw new InvalidDataException("Invalid EMF header or length.");

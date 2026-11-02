@@ -68,7 +68,16 @@ public static class DocxPdfConverter
                 using var bitmap = SKImage.FromEncodedData(data);
                 if (bitmap is not null)
                 {
-                    canvas.DrawImage(bitmap, SKRect.Create((float)image.X, (float)image.Y, (float)image.Width, (float)image.Height), new SKSamplingOptions(SKFilterMode.Linear));
+                    canvas.Save();
+                    canvas.Translate((float)(image.X + image.Width / 2), (float)(image.Y + image.Height / 2));
+                    canvas.RotateDegrees((float)image.Rotation);
+                    canvas.Scale(image.FlipH ? -1 : 1, image.FlipV ? -1 : 1);
+                    canvas.Translate((float)(-image.Width / 2), (float)(-image.Height / 2));
+                    canvas.ClipRect(SKRect.Create((float)image.Width, (float)image.Height));
+                    var expandedWidth = image.Width / (1 - image.CropLeft - image.CropRight);
+                    var expandedHeight = image.Height / (1 - image.CropTop - image.CropBottom);
+                    canvas.DrawImage(bitmap, SKRect.Create((float)(-image.CropLeft * expandedWidth), (float)(-image.CropTop * expandedHeight), (float)expandedWidth, (float)expandedHeight), new SKSamplingOptions(SKFilterMode.Linear));
+                    canvas.Restore();
                 }
             }
             foreach (var run in page.Runs)

@@ -59,6 +59,13 @@ internal static class EmfFixtures
         BinaryPrimitives.WriteInt32LittleEndian(result.AsSpan(44), 0x10000);
         BinaryPrimitives.WriteInt32LittleEndian(result.AsSpan(48), result.Length);
         BinaryPrimitives.WriteInt32LittleEndian(result.AsSpan(52), records.Count);
+        BinaryPrimitives.WriteInt32LittleEndian(result.AsSpan(32), 2000);
+        BinaryPrimitives.WriteInt32LittleEndian(result.AsSpan(36), 2000);
+        BinaryPrimitives.WriteInt16LittleEndian(result.AsSpan(56), 2);
+        BinaryPrimitives.WriteInt32LittleEndian(result.AsSpan(72), 1000);
+        BinaryPrimitives.WriteInt32LittleEndian(result.AsSpan(76), 1000);
+        BinaryPrimitives.WriteInt32LittleEndian(result.AsSpan(80), 100);
+        BinaryPrimitives.WriteInt32LittleEndian(result.AsSpan(84), 100);
         return result;
     }
 }

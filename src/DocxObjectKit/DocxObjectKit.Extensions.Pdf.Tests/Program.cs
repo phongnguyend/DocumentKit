@@ -14,8 +14,12 @@ void Check(bool value, string message)
     }
     count++;
 }
+EmfDiagramTests.Run(Check);
 var bytes = File.ReadAllBytes(Path.Combine(AppContext.BaseDirectory, "Fixtures/sample.docx"));
 var source = DocxReader.Read(bytes);
+LayoutFeatureTests.Run(source, Check);
+PageFieldTests.Run(source, Check);
+LineShapeTests.Run(source, Check);
 var layout = DocumentApplication.Inspect(bytes);
 Check(layout.Pages.Count == 2, "Explicit page break not honored.");
 Check(layout.Pages[0].Runs.Any(item => item.Text == "Red" && item.Bold && item.Color == "CC0033"), "Text styling missing.");
@@ -119,7 +123,9 @@ using var invalidEmfEngine = new DocxLayout(source.WithPart(imagePart, invalidEm
 Check(invalidEmfEngine.Build().Warnings.Any(item => item.Contains("EMF record size")), "Malformed EMF must be rejected safely.");
 using var unsupportedEmfEngine = new DocxLayout(source.WithPart(imagePart, EmfFixtures.Create(unsupported: true)));
 var unsupportedEmf = unsupportedEmfEngine.Build();
-Check(unsupportedEmf.Pages.Sum(item => item.Images.Count) == 0 && unsupportedEmf.Warnings.Any(item => item.Contains("Unsupported EMF drawing record")), "Unsupported EMF commands must not silently produce an incomplete picture.");
+Check(OperatingSystem.IsWindows()
+    ? unsupportedEmf.Pages.Sum(item => item.Images.Count) == 2
+    : unsupportedEmf.Pages.Sum(item => item.Images.Count) == 0 && unsupportedEmf.Warnings.Any(item => item.Contains("Unsupported EMF")), "Windows fallback must render rectangle records; other platforms must report unsupported EMF.");
 var invalidPoints = EmfFixtures.Create();
 for (var recordOffset = 0; recordOffset < invalidPoints.Length;)
 {
@@ -312,5 +318,131 @@ var borderRules = borderEngine.Build().Pages[0].Rules;
 Check(borderRules[0].StrokeWidth == 0 && borderRules[0].Edges is [not null, null, null, not null], "Explicit hidden cell borders must suppress only their own edges.");
 Check(borderRules[0].Edges![0] == new DocxBorder(3, "2367AB"), "Border size must be converted from eighth-points and retain its color.");
 Check(borderRules[1].Edges![3] == new DocxBorder(1, "008800") && borderRules[1].Edges![1] == new DocxBorder(3, "2367AB"), "Interior borders must not inherit exterior border formatting.");
+var markShading = new XElement(W + "p",
+    new XElement(W + "pPr", new XElement(W + "rPr",
+        new XElement(W + "shd", new XAttribute(W + "val", "clear"), new XAttribute(W + "fill", "CCCCCC")))),
+    new XElement(W + "r", new XElement(W + "t", "Label")),
+    new XElement(W + "r", new XElement(W + "rPr",
+        new XElement(W + "shd", new XAttribute(W + "val", "clear"), new XAttribute(W + "fill", "FFFF00"))),
+        new XElement(W + "t", "Marked")));
+using var markShadingEngine = new DocxLayout(Synthetic(markShading));
+var markRuns = markShadingEngine.Build().Pages[0].Runs;
+Check(markRuns.Single(run => run.Text == "Label").Background is null, "Paragraph-mark shading must not appear behind text.");
+Check(markRuns.Single(run => run.Text == "Marked").Background == "FFFF00", "Explicit text-run shading must be preserved.");
+var partialIndentHeading = Paragraph("Synthetic heading");
+partialIndentHeading.AddFirst(new XElement(W + "pPr",
+    new XElement(W + "numPr", new XElement(W + "numId", new XAttribute(W + "val", 90)), new XElement(W + "ilvl", new XAttribute(W + "val", 2))),
+    new XElement(W + "ind", new XAttribute(W + "hanging", 180))));
+var headingNumbering = new XElement(W + "abstractNum", new XAttribute(W + "abstractNumId", 90));
+for (var levelIndex = 0; levelIndex < 3; levelIndex++)
+{
+    headingNumbering.Add(new XElement(W + "lvl", new XAttribute(W + "ilvl", levelIndex),
+        new XElement(W + "start", new XAttribute(W + "val", levelIndex == 1 ? 4 : 1)),
+        new XElement(W + "numFmt", new XAttribute(W + "val", "decimal")),
+        new XElement(W + "lvlText", new XAttribute(W + "val", "%1.%2.%3")),
+        new XElement(W + "pPr", new XElement(W + "ind", new XAttribute(W + "left", 720), new XAttribute(W + "hanging", 360)))));
+}
+var headingPackage = Synthetic(partialIndentHeading).WithXml("word/numbering.xml", new XDocument(new XElement(W + "numbering", headingNumbering,
+    new XElement(W + "num", new XAttribute(W + "numId", 90), new XElement(W + "abstractNumId", new XAttribute(W + "val", 90))))));
+using var headingEngine = new DocxLayout(headingPackage);
+var headingRuns = headingEngine.Build().Pages[0].Runs;
+Check(headingRuns.Any(run => run.Text == "1.4.1"), "Ancestor numbering placeholders must honor their level start values.");
+Check(Math.Abs(headingRuns.First().X - 99) < .01, "Partial indentation must retain the numbering left indent and explicit paragraph hanging indent.");
+var croppedXml = source.ReadXml("word/document.xml");
+var croppedPicture = croppedXml.Descendants(A + "blip").First().Parent!;
+croppedPicture.Add(new XElement(A + "srcRect", new XAttribute("l", 25000), new XAttribute("r", 12500), new XAttribute("t", -10000)));
+var pictureTransform = croppedXml.Descendants(A + "xfrm").First();
+pictureTransform.SetAttributeValue("rot", 5400000);
+pictureTransform.SetAttributeValue("flipH", "1");
+pictureTransform.SetAttributeValue("flipV", "true");
+var croppedPackage = source.WithXml("word/document.xml", croppedXml);
+using var cropEngine = new DocxLayout(croppedPackage);
+var cropLayout = cropEngine.Build();
+var croppedImage = cropLayout.Pages[0].Images[0];
+Check(croppedImage.CropLeft == .25 && croppedImage.CropRight == .125 && croppedImage.CropTop == -.1, "Image crop fractions and negative padding must be retained.");
+Check(croppedImage.Rotation == 90 && croppedImage.FlipH && croppedImage.FlipV, "Drawing transforms must retain rotation and flips.");
+Check(!cropLayout.Warnings.Any(note => note.Contains("cropping")), "Supported crop should not produce an unsupported warning.");
+File.WriteAllBytes(Path.Combine(AppContext.BaseDirectory, "cropped.pdf"), DocxPdfConverter.Convert(croppedPackage).Bytes);
+
+foreach (var (numberFormat, startValue, expected) in new[] { ("upperRoman", 9, "IX."), ("lowerRoman", 4, "iv."), ("upperLetter", 27, "AA."), ("decimalZero", 0, "00.") })
+{
+    var formatXml = numberPackage.ReadXml("word/numbering.xml");
+    var formatLevel = formatXml.Descendants(W + "lvl").First();
+    formatLevel.Element(W + "numFmt")!.SetAttributeValue(W + "val", numberFormat);
+    formatLevel.Element(W + "start")!.SetAttributeValue(W + "val", startValue);
+    using var formatEngine = new DocxLayout(numberPackage.WithXml("word/numbering.xml", formatXml));
+    var formatRuns = formatEngine.Build().Pages.SelectMany(item => item.Runs).ToArray();
+    Check(formatRuns.Any(run => run.Text == expected), "Numbering format/start failed: " + numberFormat);
+    if (startValue == 0)
+    {
+        Check(formatRuns.Any(run => run.Text == "01."), "Zero-based numbering must increment instead of restarting at zero.");
+    }
+}
+var restartXml = headingPackage.ReadXml("word/numbering.xml");
+restartXml.Descendants(W + "lvl").Last().Add(new XElement(W + "lvlRestart", new XAttribute(W + "val", 0)));
+var upperHeading = new XElement(partialIndentHeading);
+upperHeading.Descendants(W + "ilvl").Single().SetAttributeValue(W + "val", 0);
+var restartPackage = Synthetic(new XElement(partialIndentHeading), upperHeading, new XElement(partialIndentHeading)).WithXml("word/numbering.xml", restartXml);
+using var restartEngine = new DocxLayout(restartPackage);
+Check(restartEngine.Build().Pages.SelectMany(item => item.Runs).Any(run => run.Text == "1.4.2"), "Never-restart list levels must survive parent headings.");
+XElement FixedLine(string text, int points, params XElement[] flags)
+{
+    var paragraph = Paragraph(text);
+    paragraph.AddFirst(new XElement(W + "pPr", flags, new XElement(W + "spacing", new XAttribute(W + "before", 0), new XAttribute(W + "after", 0), new XAttribute(W + "line", points * 20), new XAttribute(W + "lineRule", "exact"))));
+    return paragraph;
+}
+var pageFiller = FixedLine("Synthetic preceding content", 620);
+var keepHeading = FixedLine("Kept heading", 20, new XElement(W + "keepNext"));
+var followingParagraph = FixedLine("Following text", 20);
+using var keepNextEngine = new DocxLayout(Synthetic(new XElement(pageFiller), keepHeading, followingParagraph));
+var keptPages = keepNextEngine.Build().Pages;
+Check(keptPages.Count == 2 && keptPages[1].TextObjects.Count == 2 && keptPages[0].TextObjects.Count == 1, "Keep-next must move a heading with its following text without duplicating objects.");
+var wholeParagraph = FixedLine("First line", 20, new XElement(W + "keepLines"));
+wholeParagraph.Add(new XElement(W + "r", new XElement(W + "br"), new XElement(W + "t", "Second line")));
+using var keepLinesEngine = new DocxLayout(Synthetic(new XElement(pageFiller), wholeParagraph));
+Check(keepLinesEngine.Build().Pages[1].Runs.Count(run => run.Text is "First" or "Second") == 2, "Keep-lines must move both lines to the next page.");
+var disabledKeep = new XElement(wholeParagraph);
+disabledKeep.Descendants(W + "keepLines").Single().SetAttributeValue(W + "val", 0);
+disabledKeep.Element(W + "pPr")!.Add(new XElement(W + "widowControl", new XAttribute(W + "val", 0)));
+using var splitEngine = new DocxLayout(Synthetic(new XElement(pageFiller), disabledKeep));
+var splitPages = splitEngine.Build().Pages;
+Check(splitPages[0].Runs.Any(run => run.Text == "First") && splitPages[1].Runs.Any(run => run.Text == "Second"), "Disabled keep-lines must allow normal splitting.");
+var numberedHeading = FixedLine("Numbered heading", 20, new XElement(W + "keepNext"), new XElement(W + "numPr", new XElement(W + "numId", new XAttribute(W + "val", 1))));
+var numberedFollowing = FixedLine("Numbered body", 20, new XElement(W + "numPr", new XElement(W + "numId", new XAttribute(W + "val", 1))));
+var keptNumberPackage = Synthetic(new XElement(pageFiller), numberedHeading, numberedFollowing).WithXml("word/numbering.xml", numberPackage.ReadXml("word/numbering.xml"));
+using var keptNumberEngine = new DocxLayout(keptNumberPackage);
+var keptNumbers = keptNumberEngine.Build().Pages.SelectMany(item => item.Runs).Where(run => run.Text is "1." or "2." or "3.").Select(run => run.Text).ToArray();
+Check(keptNumbers.SequenceEqual(new[] { "1.", "2." }), "Pagination measurement must not advance numbering counters.");
+var longKept = FixedLine("Long first line", 20, new XElement(W + "keepLines"));
+for (var lineIndex = 0; lineIndex < 40; lineIndex++)
+{
+    longKept.Add(new XElement(W + "r", new XElement(W + "br"), new XElement(W + "t", "Additional line")));
+}
+using var longKeepEngine = new DocxLayout(Synthetic(new XElement(pageFiller), longKept));
+var longKeepPages = longKeepEngine.Build().Pages;
+Check(longKeepPages.Count == 3 && longKeepPages.Sum(item => item.Runs.Count(run => run.Text == "Additional")) == 40, "Oversized keep-lines paragraphs must split without losing text or creating blank pages.");
+var bulletXml = numberPackage.ReadXml("word/numbering.xml");
+var bulletLevel = bulletXml.Descendants(W + "lvl").First();
+bulletLevel.Element(W + "numFmt")!.SetAttributeValue(W + "val", "bullet");
+bulletLevel.Element(W + "lvlText")!.SetAttributeValue(W + "val", "\uf0b7");
+bulletLevel.Add(new XElement(W + "rPr", new XElement(W + "rFonts", new XAttribute(W + "ascii", "Wingdings"))));
+using var bulletEngine = new DocxLayout(numberPackage.WithXml("word/numbering.xml", bulletXml));
+var bulletLayout = bulletEngine.Build();
+var bulletRun = bulletLayout.Pages[0].Runs.First();
+Check(bulletRun.Text == "\u2022" && !bulletLayout.Warnings.Any(note => note.Contains("Some characters are unavailable")), "Normalized symbol-font bullets must use a font containing the replacement glyph.");
+var largeMarkerXml = numberPackage.ReadXml("word/numbering.xml");
+largeMarkerXml.Descendants(W + "lvl").First().Add(new XElement(W + "rPr", new XElement(W + "sz", new XAttribute(W + "val", 48))));
+using var largeMarkerEngine = new DocxLayout(numberPackage.WithXml("word/numbering.xml", largeMarkerXml));
+var largeMarkerRuns = largeMarkerEngine.Build().Pages.SelectMany(item => item.Runs).Where(run => run.Text == "List").ToArray();
+var normalMarkerRuns = numberedLayout.Pages.SelectMany(item => item.Runs).Where(run => run.Text == "List").ToArray();
+Check(largeMarkerRuns.Length == 2 && Math.Abs((largeMarkerRuns[1].Baseline - largeMarkerRuns[0].Baseline) - (normalMarkerRuns[1].Baseline - normalMarkerRuns[0].Baseline)) < .01, "Numbering marker font metrics must not inflate paragraph line spacing.");
+XNamespace legacyVml = "urn:schemas-microsoft-com:vml";
+var legacyRelation = (string)source.ReadXml("word/document.xml").Descendants(A + "blip").First().Attribute(R + "embed")!;
+var legacyParagraph = new XElement(W + "p", new XElement(W + "r", new XElement(W + "object",
+    new XElement(legacyVml + "shape", new XAttribute("style", "width:120pt;height:80pt"),
+        new XElement(legacyVml + "imagedata", new XAttribute(R + "id", legacyRelation))))));
+using var legacyEngine = new DocxLayout(Synthetic(legacyParagraph));
+var legacyImage = legacyEngine.Build().Pages[0].Images.Single();
+Check(legacyImage.Width == 120 && legacyImage.Height == 80 && legacyImage.ReadOnly, "Embedded-object preview must retain dimensions and be read-only.");
 File.WriteAllBytes(Path.Combine(AppContext.BaseDirectory, "sample.pdf"), pdf.Bytes);
 Console.WriteLine($"Passed {count} DOCX native layout/PDF checks.");

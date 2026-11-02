@@ -228,42 +228,7 @@ public sealed partial class DocxLayout
                     imageIds[picture] = "decoration-" + target.Number + "-" + kind + "-i" + ordinal++;
                 }
                 NormalizeAlternates(decoration.Root!);
-                foreach (var field in decoration.Descendants(W + "fldSimple"))
-                {
-                    var instruction = Value(field, "instr") ?? "";
-                    if (!Regex.IsMatch(instruction, @"^\s*(PAGE|NUMPAGES)(?:\s|$)"))
-                    {
-                        continue;
-                    }
-                    var value = Regex.IsMatch(instruction, @"^\s*NUMPAGES(?:\s|$)") ? pages.Length : displayedPage;
-                    var texts = field.Descendants(W + "t").ToArray();
-                    if (texts.Length == 0)
-                    {
-                        field.Add(new XElement(W + "r", new XElement(W + "t", value.ToString(CultureInfo.InvariantCulture))));
-                    }
-                    else
-                    {
-                        texts[0].Value = value.ToString(CultureInfo.InvariantCulture);
-                        foreach (var extra in texts.Skip(1))
-                        {
-                            extra.Value = "";
-                        }
-                    }
-                }
-                // Other cached field values are preserved except the current page number.
-                var pageField = false;
-                foreach (var run in decoration.Descendants(W + "r"))
-                {
-                    if (run.Element(W + "instrText") is { } instruction)
-                    {
-                        pageField = Regex.IsMatch(instruction.Value, @"^\s*PAGE(?:\s|$)");
-                    }
-                    if (pageField && run.Element(W + "t") is { } value)
-                    {
-                        value.Value = displayedPage.ToString(CultureInfo.InvariantCulture);
-                        pageField = false;
-                    }
-                }
+                UpdatePageFields(decoration, checked((int)displayedPage), pages.Length, Value(section.Element(W + "pgNumType"), "fmt") ?? "decimal");
                 var scratch = new DocxPage(0, "decoration", "", [], [], [], []);
                 result.Pages.Add(scratch);
                 var previousPage = page;

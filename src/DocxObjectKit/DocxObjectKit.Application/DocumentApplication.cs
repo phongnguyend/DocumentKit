@@ -98,6 +98,7 @@ public static class DocumentApplication
         }
         var edited = request.Kind switch
         {
+            "refresh-toc" => DocxTocUpdater.Update(document),
             "apply-image-ocr" => ApplyOcr(document, request),
             "add-text" => DocxEditor.AddText(document, request.Text, anchor),
             "text" => DocxEditor.SetText(document, request.ObjectId, request.Text),
