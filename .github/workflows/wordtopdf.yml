@@ -8,10 +8,16 @@ on:
       - 'releases/wordtopdf/v*'
     paths:
       - 'src/WordToPdf/**'
+      - 'src/DocxObjectKit/DocxObjectKit/**'
+      - 'src/DocxObjectKit/DocxObjectKit.Extensions.Pdf/**'
+      - 'src/DocxObjectKit/Directory.Build.props'
       - '.github/workflows/wordtopdf.yml'
   pull_request:
     paths:
       - 'src/WordToPdf/**'
+      - 'src/DocxObjectKit/DocxObjectKit/**'
+      - 'src/DocxObjectKit/DocxObjectKit.Extensions.Pdf/**'
+      - 'src/DocxObjectKit/Directory.Build.props'
       - '.github/workflows/wordtopdf.yml'
   workflow_dispatch:
 
@@ -51,6 +57,10 @@ jobs:
       max-parallel: 4
       matrix:
         include:
+          - image: word-to-pdf/docxobjectkit-api
+            context: src
+            dockerfile: src/WordToPdf/WordToPdf.DocxObjectKit.Api/Dockerfile
+            cache-scope: wordtopdf-docxobjectkit-api
           - image: word-to-pdf/libreoffice-api
             context: src/WordToPdf
             dockerfile: src/WordToPdf/WordToPdf.LibreOffice.Api/Dockerfile

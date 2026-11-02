@@ -1,0 +1,7 @@
+**/bin
+**/obj
+**/node_modules
+**/test-results
+**/dist
+**/public/ocr
+.git

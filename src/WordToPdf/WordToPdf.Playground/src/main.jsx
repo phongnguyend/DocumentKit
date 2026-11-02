@@ -3,6 +3,7 @@ import { createRoot } from 'react-dom/client';
 import './style.css';
 
 const engines = [
+  { id: 'docxobjectkit', name: 'DocxObjectKit', description: 'Native .NET conversion (.docx only, experimental)' },
   { id: 'libreoffice', name: 'LibreOffice', description: 'Writer document to PDF' },
 ];
 const maxSize = 10 * 1024 * 1024;
@@ -83,6 +84,9 @@ function App() {
     requests.current.add(controller);
     const timeout = setTimeout(() => controller.abort(), 120000);
     try {
+      if (engine.id === 'docxobjectkit' && !/\.docx$/i.test(file.name)) {
+        throw new Error('Use LibreOffice for legacy .doc files. DocxObjectKit accepts .docx only.');
+      }
       const body = new FormData();
       body.append('file', file);
       const response = await fetch(`/api/${engine.id}/convert`, { method: 'POST', body, signal: controller.signal });
@@ -109,7 +113,7 @@ function App() {
       controller.signal.throwIfAborted();
       const url = URL.createObjectURL(blob);
       urls.current.add(url);
-      updateResult({ status: 'success', url, name: file.name.replace(/\.(docx|doc)$/i, multiple ? `.${engine.id}.pdf` : '.pdf'), size: blob.size });
+      updateResult({ status: 'success', warningCount: Number(response.headers.get('X-Conversion-Warning-Count') || 0), url, name: file.name.replace(/\.(docx|doc)$/i, multiple ? `.${engine.id}.pdf` : '.pdf'), size: blob.size });
     } catch (failure) {
       updateResult({ status: 'error', error: failure.name === 'AbortError' ? 'Conversion timed out. Please try again.' : failure instanceof TypeError ? 'Could not reach the conversion service. Check that the proxy is running and try again.' : failure.message });
     } finally {
@@ -122,7 +126,7 @@ function App() {
     <div className="shell">
       <header className="topbar"><a href="/" className="brand"><span className="brand-icon">W</span> Word to PDF</a><span className="badge">PLAYGROUND</span></header>
       <main>
-        <div className="intro"><p className="eyebrow">FROM DOCUMENT TO PDF</p><h1>Your document.<br /><span>Ready for print.</span></h1><p>Turn a Word file into a downloadable PDF.<br /> Convert with LibreOffice, then view or download your PDF.</p></div>
+        <div className="intro"><p className="eyebrow">FROM DOCUMENT TO PDF</p><h1>Your document.<br /><span>Ready for print.</span></h1><p>Turn a Word file into a downloadable PDF.<br /> Choose LibreOffice or DocxObjectKit, then view or download your PDF.</p></div>
         <form onSubmit={convert} className="workspace" aria-busy={busy}>
           <section className="upload-panel" aria-labelledby="upload-heading">
             <div className="section-title"><span className="step">01</span><h2 id="upload-heading">Add your document</h2></div>
@@ -177,7 +181,7 @@ function App() {
                 {result.status === 'pending' && <p className="pending">{result.engine.name}: Converting…</p>}
                 {result.status === 'error' && <p className="error" role="alert">{result.engine.name}: {result.error}</p>}
                 {result.status === 'success' && <div className="success">
-                <div><strong>{result.engine.name}: Your PDF is ready</strong><p>{result.name} · {(result.size / 1024).toFixed(1)} KB</p></div>
+                <div>{result.warningCount > 0 && <p role="status">{result.warningCount} conversion notes: some formatting may differ. Review the PDF before sharing.</p>}<strong>{result.engine.name}: Your PDF is ready</strong><p>{result.name} · {(result.size / 1024).toFixed(1)} KB</p></div>
                 <div className="result-actions">
                   <a className="secondary view-pdf" href={result.url} target="_blank" rel="noopener noreferrer" aria-label="View PDF (opens in a new tab)">View PDF <span aria-hidden="true">↗</span></a>
                   <a className="primary download" href={result.url} download={result.name}>Download PDF <span aria-hidden="true">↓</span></a>
@@ -188,7 +192,7 @@ function App() {
           </div>
           {error && <p className="error" role="alert">{error}</p>}
         </form>
-        <footer><span>Word in. PDF out.</span><span>Powered by LibreOffice</span></footer>
+        <footer><span>Word in. PDF out.</span><span>LibreOffice ? DocxObjectKit</span></footer>
       </main>
     </div>
   );

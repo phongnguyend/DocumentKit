@@ -1,0 +1,39 @@
+name: DocxObjectKit
+on:
+  push:
+    paths: ['src/DocxObjectKit/**', '.github/workflows/docxobjectkit.yml']
+  pull_request:
+    paths: ['src/DocxObjectKit/**', '.github/workflows/docxobjectkit.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: '10.0.x'
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: src/DocxObjectKit/DocxObjectKit.Playground.Ui/package-lock.json
+      - run: sudo apt-get update && sudo apt-get install -y libfontconfig1 fonts-dejavu-core fonts-liberation
+      - run: dotnet build src/DocxObjectKit/DocxObjectKit.slnx -c Release
+      - run: dotnet run --project src/DocxObjectKit/DocxObjectKit.Tests -c Release --no-build
+      - run: dotnet run --project src/DocxObjectKit/DocxObjectKit.Extensions.Pdf.Tests -c Release --no-build
+      - name: Build playground and run browser tests
+        working-directory: src/DocxObjectKit/DocxObjectKit.Playground.Ui
+        run: |
+          npm ci
+          npm run build
+          npx playwright install --with-deps chromium
+          npm run test:e2e
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: docxobjectkit-test-results
+          path: src/DocxObjectKit/DocxObjectKit.Playground.Ui/test-results/

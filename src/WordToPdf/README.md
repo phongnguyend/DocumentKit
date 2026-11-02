@@ -1,13 +1,15 @@
 # Word to PDF
 
 The same CLI / API / proxy / React 19 playground structure as `HtmlToPdf`,
-using LibreOffice Writer for `.docx` and `.doc` files.
+using LibreOffice Writer for `.docx` and `.doc` files, or native .NET conversion with
+`DocxObjectKit.Extensions.Pdf` for `.docx` files.
 
 | Project | Purpose |
 | --- | --- |
 | `WordToPdf.LibreOffice.Cli` | Convert a local file from the command line |
 | `WordToPdf.LibreOffice.Api` | Multipart file conversion API |
-| `WordToPdf.Proxy` | YARP gateway at `/libreoffice/*` |
+| `WordToPdf.DocxObjectKit.Api` | Native DOCX-to-PDF engine (no Office or LibreOffice required) |
+| `WordToPdf.Proxy` | YARP gateway at `/libreoffice/*` and `/docxobjectkit/*` |
 | `WordToPdf.Playground` | Drag/drop or browse, then view or download the PDF |
 
 LibreOffice execution lives in the API project and is linked into its CLI. Excel and Word have independent converter implementations. Each conversion has an
@@ -33,10 +35,11 @@ docker compose up --build -d
 | Playground | http://localhost:8104 |
 | Proxy | http://localhost:8100 |
 | LibreOffice API | http://localhost:8101 |
+| DocxObjectKit API | http://localhost:8102 |
 
-The .NET Dockerfiles use this solution directory as their build context.
+The native engine Dockerfile uses `src/` as its build context; the other .NET Dockerfiles use this solution directory.
 Their `Dockerfile.dockerignore` excludes local `bin/` and `obj/` output.
-Containers include LibreOffice and basic fonts, and run as a non-root user.
+The LibreOffice containers include Office conversion tools; the native container includes Skia and fonts. All run as a non-root user.
 
 ## Local development
 
@@ -47,6 +50,7 @@ or available as `soffice` on PATH on Linux. Start these in separate terminals:
 ```powershell
 dotnet build ./WordToPdf.slnx
 dotnet run --project ./WordToPdf.LibreOffice.Api
+dotnet run --project ./WordToPdf.DocxObjectKit.Api
 dotnet run --project ./WordToPdf.Proxy
 ```
 
@@ -97,3 +101,23 @@ npm run test:e2e
 ```
 
 Run these commands from the playground directory.
+
+
+### Native conversion
+
+Select **DocxObjectKit** in the playground, or select both engines to compare their PDFs.
+The native API runs on `http://localhost:62821` locally. Through the proxy:
+
+```powershell
+curl.exe -F "file=@document.docx" http://localhost:62823/docxobjectkit/convert -o document.pdf
+```
+
+It accepts non-empty DOCX uploads up to 10 MB and returns a searchable PDF.
+Invalid/unsupported documents return HTTP 422; invalid size or extension returns HTTP 400.
+`X-Conversion-Warning-Count` reports layout notes; the playground displays that count.
+Native layout is experimental: advanced Word drawing, table and pagination features may differ.
+See [DocxObjectKit limitations](../DocxObjectKit/README.md). Legacy `.doc` needs LibreOffice.
+
+Run playground tests with `npm run test:e2e`. To include native API integration checks,
+start the native API and proxy and set `WORD_TO_PDF_NATIVE_LIVE_TEST=1`.
+`WORD_TO_PDF_NATIVE_URL` can override the proxy URL for those checks.

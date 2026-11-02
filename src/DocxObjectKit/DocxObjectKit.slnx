@@ -1,0 +1,9 @@
+<Solution>
+  <Project Path="DocxObjectKit/DocxObjectKit.csproj" />
+  <Project Path="DocxObjectKit.Application/DocxObjectKit.Application.csproj" />
+  <Project Path="DocxObjectKit.Extensions.Pdf/DocxObjectKit.Extensions.Pdf.csproj" />
+  <Project Path="DocxObjectKit.Playground.Api/DocxObjectKit.Playground.Api.csproj" />
+  <Project Path="DocxObjectKit.Cli/DocxObjectKit.Cli.csproj" />
+  <Project Path="DocxObjectKit.Tests/DocxObjectKit.Tests.csproj" />
+  <Project Path="DocxObjectKit.Extensions.Pdf.Tests/DocxObjectKit.Extensions.Pdf.Tests.csproj" />
+</Solution>

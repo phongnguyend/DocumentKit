@@ -17,7 +17,9 @@ services:
     init: true
     depends_on:
       - libreoffice-api
+      - docxobjectkit-api
     environment:
+      ReverseProxy__Clusters__docxobjectkit-cluster__Destinations__destination1__Address: http://docxobjectkit-api:8080/
       ReverseProxy__Clusters__libreoffice-cluster__Destinations__destination1__Address: http://libreoffice-api:8080/
     ports:
       - "8100:8080"
@@ -29,3 +31,11 @@ services:
     init: true
     ports:
       - "8101:8080"
+
+  docxobjectkit-api:
+    image: docker.io/${DOCKERHUB_NAMESPACE:?Set DOCKERHUB_NAMESPACE}/word-to-pdf-docxobjectkit-api:${IMAGE_TAG:-latest}
+    platform: linux/amd64
+    pull_policy: always
+    init: true
+    ports:
+      - "8102:8080"

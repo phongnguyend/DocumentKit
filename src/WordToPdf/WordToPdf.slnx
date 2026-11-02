@@ -2,4 +2,5 @@
   <Project Path="WordToPdf.LibreOffice.Api/WordToPdf.LibreOffice.Api.csproj" />
   <Project Path="WordToPdf.LibreOffice.Cli/WordToPdf.LibreOffice.Cli.csproj" />
   <Project Path="WordToPdf.Proxy/WordToPdf.Proxy.csproj" />
+  <Project Path="WordToPdf.DocxObjectKit.Api/WordToPdf.DocxObjectKit.Api.csproj" />
 </Solution>

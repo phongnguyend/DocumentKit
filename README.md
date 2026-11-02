@@ -1,11 +1,12 @@
 # DocumentKit
 
-- [PptxObjectKit](src/PptxObjectKit/README.md): inspect, edit, preview and manage PowerPoint presentations, with Markdown extraction.
-- [PdfObjectKit](src/PdfObjectKit/README.md): serialize the PDF object graph with Base64 streams and binary strings, then rebuild a PDF from JSON.
-- [HtmlToPdf](src/HtmlToPdf/README.md): convert HTML files and webpage URLs using Chrome, Playwright, or PuppeteerSharp.
-- [ExcelToPdf](src/ExcelToPdf/README.md): convert Excel workbooks using LibreOffice.
-- [WordToPdf](src/WordToPdf/README.md): convert Word documents using LibreOffice.
-- [PowerPointToPdf](src/PowerPointToPdf/README.md): convert PowerPoint presentations using LibreOffice.
+- [DocxObjectKit](src/DocxObjectKit/README.md): inspect, edit and preview Word documents, manage text and images, extract Markdown, and export PDFs with a native .NET engine.
+- [PptxObjectKit](src/PptxObjectKit/README.md): inspect, edit and preview PowerPoint presentations, manage slides, text and images, extract Markdown, and export PDFs with a native .NET engine.
+- [PdfObjectKit](src/PdfObjectKit/README.md): inspect, edit and render PDFs; manage pages, text, images, forms and annotations; extract Markdown; and export editable PowerPoint slides.
+- [HtmlToPdf](src/HtmlToPdf/README.md): convert HTML files and webpage URLs to PDF using Chrome, Playwright, or PuppeteerSharp.
+- [ExcelToPdf](src/ExcelToPdf/README.md): convert Excel workbooks to PDF using LibreOffice.
+- [WordToPdf](src/WordToPdf/README.md): convert Word documents to PDF using LibreOffice or the native DocxObjectKit engine.
+- [PowerPointToPdf](src/PowerPointToPdf/README.md): convert PowerPoint presentations to PDF using LibreOffice or the native PptxObjectKit engine.
 
 ## Build workflows
 

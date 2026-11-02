@@ -1,0 +1,6 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <ItemGroup>
+    <ProjectReference Include="../DocxObjectKit/DocxObjectKit.csproj" />
+    <ProjectReference Include="../DocxObjectKit.Extensions.Pdf/DocxObjectKit.Extensions.Pdf.csproj" />
+  </ItemGroup>
+</Project>

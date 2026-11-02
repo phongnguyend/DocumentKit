@@ -1,0 +1,11 @@
+name: docxobjectkit
+services:
+  api:
+    build:
+      context: .
+      dockerfile: DocxObjectKit.Playground.Api/Dockerfile
+    ports: ["5092:8080"]
+  ui:
+    build: ./DocxObjectKit.Playground.Ui
+    ports: ["8126:80"]
+    depends_on: [api]

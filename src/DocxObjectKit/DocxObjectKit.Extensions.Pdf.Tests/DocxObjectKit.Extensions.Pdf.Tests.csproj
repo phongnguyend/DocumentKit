@@ -1,0 +1,8 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup><OutputType>Exe</OutputType></PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../../PdfObjectKit/PdfObjectKit/PdfObjectKit.csproj" />
+    <ProjectReference Include="../DocxObjectKit.Application/DocxObjectKit.Application.csproj" />
+  </ItemGroup>
+  <ItemGroup><None Include="../DocxObjectKit.Tests/Fixtures/sample.docx" Link="Fixtures/sample.docx" CopyToOutputDirectory="PreserveNewest" /></ItemGroup>
+</Project>

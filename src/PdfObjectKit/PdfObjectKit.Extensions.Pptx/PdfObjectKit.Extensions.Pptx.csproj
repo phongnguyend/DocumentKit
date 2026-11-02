@@ -10,8 +10,8 @@
     <Authors>Phong Nguyen</Authors>
     <Description>Editable PowerPoint export for PdfObjectKit, including text, vector graphics and transparent images.</Description>
     <PackageTags>pdf;pptx;powerpoint;converter</PackageTags>
-    <PackageProjectUrl>https://github.com/phongnguyend/Practical.Pdf/tree/main/src/PdfObjectKit</PackageProjectUrl>
-    <RepositoryUrl>https://github.com/phongnguyend/Practical.Pdf</RepositoryUrl>
+    <PackageProjectUrl>https://github.com/phongnguyend/DocumentKit/tree/main/src/PdfObjectKit</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/phongnguyend/DocumentKit</RepositoryUrl>
     <RepositoryType>git</RepositoryType>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
     <PackageReadmeFile>README.md</PackageReadmeFile>
