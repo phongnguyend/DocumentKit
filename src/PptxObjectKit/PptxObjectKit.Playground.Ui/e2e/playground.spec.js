@@ -70,7 +70,7 @@ test('open, select text, edit, reorder, undo, Markdown, delete and download', as
   await page.getByRole('button', { name: 'Download PPTX' }).click();
   const file = await downloaded;
   const bytes = await readFile(await file.path());
-  const response = await request.post('http://localhost:5090/api/documents/inspect', { data: bytes });
+  const response = await request.post('/api/documents/inspect', { data: bytes });
   expect(response.ok()).toBe(true);
   expect((await response.json()).slides[0].title).toBe('Updated presentation title');
   await page.setViewportSize({ width: 390, height: 844 });
@@ -105,7 +105,7 @@ test('preview resolves layout geometry, theme fonts/colors and wraps centered te
   await page.getByLabel('Open PPTX', { exact: true }).setInputFiles({ name: 'theme.pptx', mimeType: 'application/octet-stream', buffer: await zip.generateAsync({ type: 'nodebuffer' }) });
   await expect(page.locator('.text-layer')).toContainText('Wrapping title across several lines');
   const rendered = await page.evaluate(() => {
-    const spans = [...document.querySelectorAll('.text-layer span')];
+    const spans = [...document.querySelectorAll('.text-layer span')].filter(span => span.textContent.length > 0);
     const canvas = document.querySelector('.canvas-host canvas');
     const pixels = canvas.getContext('2d').getImageData(0, 0, canvas.width, canvas.height).data;
     let red = 0;
@@ -116,6 +116,7 @@ test('preview resolves layout geometry, theme fonts/colors and wraps centered te
     }
     return { fonts: spans.map(span => span.style.font), rows: new Set(spans.map(span => new DOMMatrix(span.style.transform).f)).size, red };
   });
+  expect(rendered.fonts.length).toBeGreaterThan(0);
   expect(rendered.fonts.every(font => font.includes('32px') && font.includes('Arial'))).toBe(true);
   expect(rendered.rows).toBeGreaterThan(1);
   expect(rendered.red).toBeGreaterThan(100);
@@ -132,7 +133,7 @@ test('agenda keeps explicit gradients, list markers and paragraph spacing', asyn
   await page.getByLabel('Open PPTX', { exact: true }).setInputFiles({ name: 'agenda.pptx', mimeType: 'application/octet-stream', buffer: await zip.generateAsync({ type: 'nodebuffer' }) });
   await expect(page.locator('.text-layer')).toContainText('1.First2.Second\u25aaChild');
   const result = await page.evaluate(() => {
-    const spans = [...document.querySelectorAll('.text-layer span')];
+    const spans = [...document.querySelectorAll('.text-layer span')].filter(span => span.textContent.length > 0);
     const position = text => new DOMMatrix(spans.find(span => span.textContent === text).style.transform).f;
     const canvas = document.querySelector('.canvas-host canvas');
     const data = canvas.getContext('2d').getImageData(0, 0, canvas.width, canvas.height).data;
@@ -165,7 +166,7 @@ test('renders group fills and cached SmartArt with readable flipped text', async
   await page.getByLabel('Open PPTX', { exact: true }).setInputFiles({ name: 'diagram.pptx', mimeType: 'application/octet-stream', buffer: await zip.generateAsync({ type: 'nodebuffer' }) });
   await expect(page.locator('.text-layer')).toContainText('Diagram text');
   const result = await page.evaluate(() => {
-    const span = document.querySelector('.text-layer span');
+    const span = [...document.querySelectorAll('.text-layer span')].find(span => span.textContent.length > 0);
     const canvas = document.querySelector('.canvas-host canvas');
     const context = canvas.getContext('2d');
     const pixel = (x, y) => [...context.getImageData(Math.round(x * canvas.width / 720), Math.round(y * canvas.width / 720), 1, 1).data];
@@ -189,7 +190,7 @@ test('renders table cells and Wingdings symbols without replacing Latin text', a
   const result = await page.evaluate(() => {
     const canvas = document.querySelector('.canvas-host canvas');
     const scale = canvas.width / 720;
-    const spans = [...document.querySelectorAll('.text-layer span')];
+    const spans = [...document.querySelectorAll('.text-layer span')].filter(span => span.textContent.length > 0);
     const pos = value => new DOMMatrix(spans.find(span => span.textContent === value).style.transform);
     return { pixel: [...canvas.getContext('2d').getImageData(110 * scale, 140 * scale, 1, 1).data], dx: (pos('Coupling').e - pos('Cohesion').e) / scale, dy: (pos('Body').f - pos('Coupling').f) / scale };
   });
@@ -237,7 +238,7 @@ test('long linked URLs wrap within the frame and preserve all selectable text', 
   await page.getByLabel('Open PPTX', { exact: true }).setInputFiles({ name: 'url.pptx', mimeType: 'application/octet-stream', buffer: await zip.generateAsync({ type: 'nodebuffer' }) });
   await expect(page.locator('.text-layer')).toHaveText(url);
   const result = await page.evaluate(() => {
-    const spans = [...document.querySelectorAll('.text-layer span')];
+    const spans = [...document.querySelectorAll('.text-layer span')].filter(span => span.textContent.length > 0);
     const canvas = document.querySelector('.canvas-host canvas');
     const scale = canvas.width / 720;
     return { rows: new Set(spans.map(span => new DOMMatrix(span.style.transform).f)).size, right: Math.max(...spans.map(span => (new DOMMatrix(span.style.transform).e + parseFloat(span.style.width) * scale) / scale)) };
@@ -261,7 +262,7 @@ test('wraps formatted words as units and renders the Wingdings sad-face symbol',
   await page.getByLabel('Open PPTX', { exact: true }).setInputFiles({ name: 'runs.pptx', mimeType: 'application/octet-stream', buffer: await zip.generateAsync({ type: 'nodebuffer' }) });
   await expect(page.locator('.text-layer')).toContainText('\u2639\ufe0e Latin');
   const rows = await page.evaluate(() => {
-    const spans = [...document.querySelectorAll('.text-layer span')];
+    const spans = [...document.querySelectorAll('.text-layer span')].filter(span => span.textContent.length > 0);
     const y = text => new DOMMatrix(spans.find(span => span.textContent === text).style.transform).f;
     return { word: y('too'), punctuation: y('.'), first: y('prefix'), nbsp: y('A\u00a0'), last: y('B') };
   });
@@ -389,7 +390,7 @@ test('manage image instances with insert, replace, resize, download, delete and 
   await expect(page.locator('.text-layer [data-kind="image"]')).toHaveCount(1);
   const saved = page.waitForEvent('download');
   await page.getByRole('button', { name: 'Download PPTX', exact: true }).click();
-  const response = await request.post('http://localhost:5090/api/documents/inspect', { data: await readFile(await (await saved).path()) });
+  const response = await request.post('/api/documents/inspect', { data: await readFile(await (await saved).path()) });
   expect(response.ok()).toBe(true);
   expect((await response.json()).slides[0].images[0].width).toBe(240);
 });
