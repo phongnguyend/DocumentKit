@@ -61,6 +61,7 @@ public sealed partial class DocxLayout
         var tableStyle = tableStyleName is not null && styles.TryGetValue(tableStyleName, out var foundStyle) ? foundStyle : null;
         var merges = new Dictionary<int, (DocxPage Page, int Rule)>();
         var rows = table.Elements(W + "tr").Take(rowLimit ?? int.MaxValue).ToArray();
+        var flowingMerges = new Dictionary<int, (double RemainingHeight, int RemainingRows)>();
         var header = new DocxPage(0, "table-header", "", [], [], [], []);
         var headerHeight = 0d;
         var collectingHeader = true;
@@ -81,7 +82,7 @@ public sealed partial class DocxLayout
         for (var rowIndex = 0; rowIndex < rows.Length; rowIndex++)
         {
             var row = rows[rowIndex];
-            var cells = new List<(DocxPage Content, double Height, double X, double Width, XElement Properties, int Column, XElement Borders)>();
+            var cells = new List<(DocxPage Content, double Height, double X, double Width, XElement Properties, int Column, XElement Borders, List<TableParagraphLayout> Paragraphs)>();
             var column = (int)Number(row.Element(W + "trPr")?.Element(W + "gridBefore"), "val");
             foreach (var cell in row.Elements(W + "tc"))
             {
@@ -119,20 +120,31 @@ public sealed partial class DocxLayout
                 page = scratch;
                 y = padTop;
                 measuringTable = true;
+                var paragraphs = new List<TableParagraphLayout>();
                 try
                 {
                     foreach (var block in Blocks(cell))
                     {
                         if (block.Name == W + "p")
                         {
-                            Paragraph(block, cellX + padLeft, Math.Max(12, cellWidth - padLeft - padRight), true);
+                            var savedLines = measuredLines;
+                            measuredLines = new();
+                            try
+                            {
+                                Paragraph(block, cellX + padLeft, Math.Max(12, cellWidth - padLeft - padRight), true);
+                                paragraphs.Add(new(Properties(block, "pPr"), measuredLines));
+                            }
+                            finally
+                            {
+                                measuredLines = savedLines;
+                            }
                         }
                         else if (block.Name == W + "tbl")
                         {
                             Table(block, cellX + padLeft, Math.Max(12, cellWidth - padLeft - padRight), depth + 1);
                         }
                     }
-                    cells.Add((scratch, y + padBottom, cellX, cellWidth, cellProperties, column, effectiveBorders));
+                    cells.Add((scratch, y + padBottom, cellX, cellWidth, cellProperties, column, effectiveBorders, paragraphs));
                 }
                 finally
                 {
@@ -147,10 +159,44 @@ public sealed partial class DocxLayout
                 }
                 column += span;
             }
-            var rowHeight = Math.Max(cells.Select(cell => cell.Height).DefaultIfEmpty(12).Max(), Number(row.Element(W + "trPr")?.Element(W + "trHeight"), "val") / 20);
+            var mergedStarts = new HashSet<int>();
+            foreach (var cell in cells)
+            {
+                var merge = cell.Properties.Element(W + "vMerge");
+                if (merge is null || Value(merge) == "restart")
+                {
+                    flowingMerges.Remove(cell.Column);
+                }
+                var span = Math.Max(1, (int)Number(cell.Properties.Element(W + "gridSpan"), "val", 1));
+                var mergeRows = Value(merge) == "restart" ? CountMergedRows(rows, rowIndex, cell.Column, span) : 1;
+                // A top-aligned text cell can paint across its row boundaries when
+                // all its text fits on this page. More complex merges retain the
+                // conservative per-row layout rather than losing clipped content.
+                if (Value(merge) == "restart" && mergeRows > 1
+                    && Value(cell.Properties.Element(W + "vAlign")) is not ("center" or "bottom")
+                    && cell.Content.Images.Count == 0 && cell.Content.Rules.Count == 0
+                    && (measuringTable || y + cell.Height <= FlowLimit && cell.Height <= FlowLimit - columnTop - headerHeight)
+                    && !Enabled(row.Element(W + "trPr") ?? new XElement(W + "trPr"), "tblHeader"))
+                {
+                    flowingMerges[cell.Column] = (cell.Height, mergeRows);
+                    mergedStarts.Add(cell.Column);
+                }
+            }
+            var rowHeight = Math.Max(cells.Where(cell => !flowingMerges.ContainsKey(cell.Column)).Select(cell => cell.Height).DefaultIfEmpty(0).Max(), Number(row.Element(W + "trPr")?.Element(W + "trHeight"), "val") / 20);
+            foreach (var merge in flowingMerges.Values)
+            {
+                if (merge.RemainingRows == 1)
+                {
+                    rowHeight = Math.Max(rowHeight, merge.RemainingHeight);
+                }
+            }
+            rowHeight = Math.Max(.1, rowHeight);
             var pageCapacity = result.Height - top - bottom;
-            var cannotSplit = Enabled(row.Element(W + "trPr") ?? new XElement(W + "trPr"), "cantSplit");
-            if (!measuringTable && cannotSplit && rowHeight <= pageCapacity && y + rowHeight > FlowLimit && y > columnTop)
+            var rowProperties = row.Element(W + "trPr") ?? new XElement(W + "trPr");
+            var cannotSplit = Enabled(rowProperties, "cantSplit") || Enabled(rowProperties, "tblHeader");
+            var minimumHeight = Number(row.Element(W + "trPr")?.Element(W + "trHeight"), "val") / 20;
+            if (!measuringTable && y > columnTop
+                && ((cannotSplit && rowHeight <= pageCapacity && y + rowHeight > FlowLimit) || y + minimumHeight > FlowLimit))
             {
                 NextTableRegion();
                 merges.Clear();
@@ -169,37 +215,69 @@ public sealed partial class DocxLayout
                 var height = measuringTable ? rowHeight - consumed : Math.Min(rowHeight - consumed, FlowLimit - y);
                 if (!measuringTable && consumed + height < rowHeight)
                 {
-                    var boundary = consumed + height;
-                    foreach (var cell in cells)
+                    var independentCells = flowingMerges.Count == 0 && cells.All(cell => cell.Content.Images.Count == 0 && cell.Content.Rules.Count == 0
+                        && Value(cell.Properties.Element(W + "vAlign")) is not ("center" or "bottom"));
+                    if (independentCells)
                     {
-                        var padding = Value(cell.Properties.Element(W + "vAlign")) switch
+                        var boundaries = cells.Select(cell => TableCellBoundary(cell.Paragraphs, consumed, consumed + height, FlowLimit - columnTop - headerHeight)).ToArray();
+                        if (boundaries.All(boundary => boundary <= consumed) && y > columnTop + headerHeight + .01)
                         {
-                            "center" => Math.Max(0, (rowHeight - cell.Height) / 2),
-                            "bottom" => Math.Max(0, rowHeight - cell.Height),
-                            _ => 0
-                        };
-                        foreach (var run in cell.Content.Runs)
-                        {
-                            if (run.Y + padding < boundary && run.Y + padding + run.Height > boundary)
-                            {
-                                boundary = Math.Max(consumed, run.Y + padding);
-                            }
+                            height = 0;
                         }
-                        foreach (var image in cell.Content.Images)
+                        else
                         {
-                            if (image.Y < boundary && image.Y + image.Height > boundary && image.Height <= pageCapacity)
+                            for (var cellIndex = 0; cellIndex < cells.Count; cellIndex++)
                             {
-                                boundary = Math.Max(consumed, image.Y);
+                                var cell = cells[cellIndex];
+                                var shift = consumed + height - boundaries[cellIndex];
+                                if (shift > .01)
+                                {
+                                    if (boundaries[cellIndex] <= consumed && y <= columnTop + headerHeight + .01)
+                                    {
+                                        throw new NotSupportedException("A table paragraph cannot fit below the repeated header in one page region.");
+                                    }
+                                    ShiftTableCell(cell.Content, cell.Paragraphs, boundaries[cellIndex], shift);
+                                    cell.Height += shift;
+                                    cells[cellIndex] = cell;
+                                    rowHeight = Math.Max(rowHeight, cell.Height);
+                                }
                             }
                         }
                     }
-                    if (boundary <= consumed && y <= columnTop + headerHeight + .01)
+                    else
                     {
-                        throw new NotSupportedException("A table line or image cannot fit below the repeated header in one page region.");
-                    }
-                    if (boundary > consumed || y > columnTop)
-                    {
-                        height = boundary - consumed;
+                        var boundary = consumed + height;
+                        foreach (var cell in cells)
+                        {
+                            var padding = Value(cell.Properties.Element(W + "vAlign")) switch
+                            {
+                                "center" => Math.Max(0, (rowHeight - cell.Height) / 2),
+                                "bottom" => Math.Max(0, rowHeight - cell.Height),
+                                _ => 0
+                            };
+                            foreach (var run in cell.Content.Runs)
+                            {
+                                if (run.Y + padding < boundary && run.Y + padding + run.Height > boundary)
+                                {
+                                    boundary = Math.Max(consumed, run.Y + padding);
+                                }
+                            }
+                            foreach (var image in cell.Content.Images)
+                            {
+                                if (image.Y < boundary && image.Y + image.Height > boundary && image.Height <= pageCapacity)
+                                {
+                                    boundary = Math.Max(consumed, image.Y);
+                                }
+                            }
+                        }
+                        if (boundary <= consumed && y <= columnTop + headerHeight + .01)
+                        {
+                            throw new NotSupportedException("A table line or image cannot fit below the repeated header in one page region.");
+                        }
+                        if (boundary > consumed || y > columnTop)
+                        {
+                            height = boundary - consumed;
+                        }
                     }
                 }
                 if (height <= 0)
@@ -216,7 +294,10 @@ public sealed partial class DocxLayout
                         "bottom" => Math.Max(0, rowHeight - cell.Height),
                         _ => 0
                     };
-                    var runs = cell.Content.Runs.Where(run => run.Y + padding >= consumed && run.Y + padding < consumed + height).Select(run => run with { X = run.X + ShiftX(), Y = run.Y + padding - consumed + y, Baseline = run.Baseline + padding - consumed + y }).ToArray();
+                    var runs = cell.Content.Runs.Where(run => mergedStarts.Contains(cell.Column)
+                        ? consumed == 0
+                        : !flowingMerges.ContainsKey(cell.Column) && run.Y + padding >= consumed && run.Y + padding < consumed + height)
+                        .Select(run => run with { X = run.X + ShiftX(), Y = run.Y + padding - consumed + y, Baseline = run.Baseline + padding - consumed + y }).ToArray();
                     page.Runs.AddRange(runs);
                     foreach (var group in runs.GroupBy(run => run.Id))
                     {
@@ -284,6 +365,45 @@ public sealed partial class DocxLayout
                 header.TextObjects.AddRange(page.TextObjects.Skip(startObject).Select(item => item with { Bounds = item.Bounds with { Y = item.Bounds.Y + shift } }));
                 headerHeight += rowHeight;
             }
+            foreach (var columnIndex in flowingMerges.Keys.ToArray())
+            {
+                var merge = flowingMerges[columnIndex];
+                if (merge.RemainingRows <= 1)
+                {
+                    flowingMerges.Remove(columnIndex);
+                }
+                else
+                {
+                    flowingMerges[columnIndex] = (Math.Max(0, merge.RemainingHeight - rowHeight), merge.RemainingRows - 1);
+                }
+            }
         }
+    }
+
+    private static int CountMergedRows(XElement[] rows, int start, int column, int span)
+    {
+        var count = 1;
+        for (var index = start + 1; index < rows.Length; index++)
+        {
+            var currentColumn = (int)Number(rows[index].Element(W + "trPr")?.Element(W + "gridBefore"), "val");
+            XElement? continuation = null;
+            foreach (var cell in rows[index].Elements(W + "tc"))
+            {
+                var properties = cell.Element(W + "tcPr");
+                var currentSpan = Math.Max(1, (int)Number(properties?.Element(W + "gridSpan"), "val", 1));
+                if (currentColumn == column && currentSpan == span)
+                {
+                    continuation = properties?.Element(W + "vMerge");
+                    break;
+                }
+                currentColumn += currentSpan;
+            }
+            if (continuation is null || Value(continuation) == "restart")
+            {
+                break;
+            }
+            count++;
+        }
+        return count;
     }
 }

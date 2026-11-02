@@ -152,10 +152,26 @@ preserves numbering counters and creates no duplicate selection objects. Explici
 page/column breaks, positioned frames and drawings are excluded from this preflight.
 Widow/orphan control measures full line advances (including blank lines) and keeps two lines together at ordinary paragraph boundaries
 unless disabled. Keep-next also binds captions/headings to the first table row.
+Trailing spaces do not create extra lines/pages or shift centered/right-aligned
+text; subsequent words still wrap when the intervening spaces exceed the line width.
+Terminal manual page breaks do not introduce a blank paragraph line on the next
+page unless `splitPgBreakAndParaMark` requests it. Word 2013+ compatibility mode
+suppresses paragraph space-before at ordinary page starts, while retaining it at
+document/section starts. Legacy compatibility keeps its earlier spacing behavior.
 Nested tables flow inside their parent cells (up to 16 levels). Splittable rows
 use available page space without cutting ordinary text lines; cantSplit keeps
 rows together when they fit. Oversized rows still split. Complex vertical merges
 across page boundaries and oversized cell images remain approximate.
+
+Plain-text table cells paginate independently with widow/orphan and keep-lines
+constraints. Repeated headers stay intact, and a row starts on the next page when
+its declared minimum height cannot fit. Top-aligned text in vertical merges can
+occupy the combined row span without inflating the first row, when its text fits
+on the starting page; complex or cross-page merged content retains conservative layout.
+Inline image paragraphs reserve baseline descender space and declared effect extents
+instead of adding a blank text line. Effect extents also participate in image alignment;
+this does not imply rendering all drawing effects. Text wrapping allows at most two
+twips (0.1 pt) of font-measurement tolerance at the line edge.
 
 Legacy VML image previews in embedded objects (including Visio) are displayed as
 read-only images. On Windows, EMFs outside the portable decoder subset use the

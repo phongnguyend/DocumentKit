@@ -23,6 +23,7 @@ public sealed partial class DocxLayout : IDisposable
     private readonly XDocument xml;
     private readonly Dictionary<string, XElement> styles;
     private readonly XElement? defaults;
+    private readonly XElement? compatibility;
     private readonly Dictionary<string, SKTypeface> fonts = new();
     private readonly SKTypeface fallback;
     private readonly HashSet<string> warnings = new(StringComparer.Ordinal);
@@ -44,6 +45,8 @@ public sealed partial class DocxLayout : IDisposable
     public DocxLayout(DocxObjectDocument document)
     {
         this.document = document;
+        compatibility = document.PartNames.Contains("word/settings.xml")
+            ? document.ReadXml("word/settings.xml").Root?.Element(W + "compat") : null;
         xml = document.ReadXml("word/document.xml");
         var styleXml = document.PartNames.Contains("word/styles.xml") ? document.ReadXml("word/styles.xml") : null;
         styles = styleXml?.Descendants(W + "style").Where(item => Value(item, "styleId") is not null).GroupBy(item => Value(item, "styleId")!).ToDictionary(group => group.Key, group => group.First()) ?? new();
@@ -274,6 +277,13 @@ public sealed partial class DocxLayout : IDisposable
             pendingAfter = 0;
         }
         var before = sameStyle && Enabled(properties, "contextualSpacing") ? 0 : Number(spacing, "before") / 20;
+        if (!measuringTable && currentPart == "word/document.xml" && properties.Element(W + "framePr") is null
+            && Math.Abs(y - columnTop) < .01
+            && Number(compatibility?.Elements(W + "compatSetting").FirstOrDefault(item => Value(item, "name") == "compatibilityMode"), "val") >= 15
+            && result.Pages.TakeWhile(item => item != page).Any(item => pageSections.GetValueOrDefault(item) == sectionIndex))
+        {
+            before = 0;
+        }
         y += Math.Max(0, before - pendingAfter);
         pendingAfter = 0;
         previousParagraphStyle = paragraphStyleId;
@@ -326,6 +336,8 @@ public sealed partial class DocxLayout : IDisposable
         var defaultAdvance = LineAdvance(paragraphFont, spacing, paragraphSize);
         var lineHeight = 0d;
         var completedLines = 0;
+        var endsWithPageBreak = false;
+        var endsWithInlineImage = false;
         var plannedBreak = measuringTable ? null : widowBreakAfter;
         if (!measuringTable)
         {
@@ -363,7 +375,9 @@ public sealed partial class DocxLayout : IDisposable
             ContinueFlow(lineHeight);
             measuredLines?.Add((y, y + lineHeight));
             var alignment = Value(properties.Element(W + "jc"));
-            var shift = alignment is "center" ? Math.Max(0, (width - offset) / 2) : alignment is "right" or "end" ? Math.Max(0, width - offset) : 0;
+            var visibleWidth = line.LastOrDefault(piece => piece.Text.Any(character => character != ' ')) is { } lastVisible
+                ? lastVisible.X + lastVisible.Width - x : 0;
+            var shift = alignment is "center" ? Math.Max(0, (width - visibleWidth) / 2) : alignment is "right" or "end" ? Math.Max(0, width - visibleWidth) : 0;
             var baseline = line.Select(piece => piece.Baseline).DefaultIfEmpty(0).Max();
             foreach (var piece in line)
             {
@@ -409,7 +423,21 @@ public sealed partial class DocxLayout : IDisposable
             foreach (var word in Regex.Split(text.Replace("\t", "    "), @"( +)").Where(item => item.Length > 0))
             {
                 var measured = font.MeasureText(word);
-                if (offset + measured > width && line.Count > 0)
+                if (word.All(character => character == ' ') && offset + measured > width)
+                {
+                    // Trailing spaces may extend past the line edge without creating a
+                    // new line. Keep their advance so following text still wraps.
+                    if (line.Count > 0)
+                    {
+                        offset += measured;
+                    }
+                    continue;
+                }
+                // Font advances accumulate fractional-point differences across runs.
+                // Bound the fit tolerance to two twips instead of wrapping a whole
+                // word for a sub-pixel overrun.
+                const double fitTolerance = .1;
+                if (offset + measured > width + fitTolerance && line.Count > 0)
                 {
                     Flush();
                 }
@@ -421,7 +449,7 @@ public sealed partial class DocxLayout : IDisposable
                 {
                     continue;
                 }
-                var starts = measured > width ? System.Globalization.StringInfo.ParseCombiningCharacters(word) : [0];
+                var starts = measured > width + fitTolerance ? System.Globalization.StringInfo.ParseCombiningCharacters(word) : [0];
                 var chunks = starts.Select((start, i) => word.Substring(start, (i + 1 < starts.Length ? starts[i + 1] : word.Length) - start));
                 foreach (var chunk in chunks)
                 {
@@ -430,7 +458,7 @@ public sealed partial class DocxLayout : IDisposable
                         ContinueFlow(Math.Max(lineHeight, advance));
                     }
                     measured = font.MeasureText(chunk);
-                    if (offset + measured > width && line.Count > 0)
+                    if (offset + measured > width + fitTolerance && line.Count > 0)
                     {
                         Flush();
                         ContinueFlow(Math.Max(lineHeight, advance));
@@ -480,6 +508,15 @@ public sealed partial class DocxLayout : IDisposable
         {
             foreach (var node in run.Elements())
             {
+                if (node.Name != W + "rPr" && node.Name != W + "lastRenderedPageBreak" && node.Name != W + "instrText"
+                    && (node.Name != W + "t" || node.Value.Length > 0))
+                {
+                    endsWithPageBreak = false;
+                    if (node.Name != W + "t" || node.Value.Any(character => character != ' '))
+                    {
+                        endsWithInlineImage = false;
+                    }
+                }
                 if (node.Name == W + "t")
                 {
                     Add(node.Value, run);
@@ -529,6 +566,7 @@ public sealed partial class DocxLayout : IDisposable
                         if (Value(node, "type") == "page")
                         {
                             page = NewPage();
+                            endsWithPageBreak = true;
                         }
                         else
                         {
@@ -563,7 +601,11 @@ public sealed partial class DocxLayout : IDisposable
                         else
                         {
                             Flush();
-                            Image(picture, x, width);
+                            var imageCount = page.Images.Count;
+                            var imagePage = page;
+                            Image(picture, x, width, Value(properties.Element(W + "jc")));
+                            endsWithInlineImage = picture.Name == WP + "inline"
+                                && (page != imagePage || page.Images.Count > imageCount);
                             if (!measuringTable && frame is null)
                             {
                                 x += FlowLeft - flowOrigin;
@@ -576,8 +618,15 @@ public sealed partial class DocxLayout : IDisposable
                 }
             }
         }
-        Flush(true);
-        pendingAfter = Number(spacing, "after", 0) / 20;
+        var paragraphEndedBeforeBreak = endsWithPageBreak && (compatibility is null || !Enabled(compatibility, "splitPgBreakAndParaMark"));
+        if (endsWithInlineImage && line.Count == 0 && Value(spacing, "lineRule") is not ("exact" or "atLeast"))
+        {
+            // The inline picture already occupies the line above its baseline.
+            // Reserve only the paragraph mark's descent, not another text line.
+            lineHeight = Math.Max(.1, paragraphFont.Metrics.Descent * Math.Max(.01, Number(spacing, "line", 240) / 240));
+        }
+        Flush(!paragraphEndedBeforeBreak);
+        pendingAfter = paragraphEndedBeforeBreak ? 0 : Number(spacing, "after", 0) / 20;
         y += pendingAfter;
         var anchorY = page.Runs.Where(run => run.Id == id).Select(run => run.Y).DefaultIfEmpty(flowingY).Min();
         foreach (var drawing in floatingText)
@@ -607,7 +656,7 @@ public sealed partial class DocxLayout : IDisposable
         }
     }
 
-    private void Image(XElement picture, double x, double available)
+    private void Image(XElement picture, double x, double available, string? alignment = null)
     {
         if (!imageIds.TryGetValue(picture, out var id) || !picture.Descendants(A + "blip").Any())
         {
@@ -644,20 +693,35 @@ public sealed partial class DocxLayout : IDisposable
             var imageY = y;
             if (picture.Name == WP + "inline")
             {
-                var scale = Math.Min(1, Math.Min(available / width, (result.Height - top - bottom) / height));
+                var effects = picture.Element(WP + "effectExtent");
+                var effectLeft = Math.Max(0, Number(effects, "l") / 12700);
+                var effectRight = Math.Max(0, Number(effects, "r") / 12700);
+                var effectTop = Math.Max(0, Number(effects, "t") / 12700);
+                var effectBottom = Math.Max(0, Number(effects, "b") / 12700);
+                var outerWidth = width + effectLeft + effectRight;
+                var outerHeight = height + effectTop + effectBottom;
+                var scale = Math.Min(1, Math.Min(available / outerWidth, (result.Height - top - bottom) / outerHeight));
                 width *= scale;
                 height *= scale;
-                if (!measuringTable && y + height > FlowLimit)
+                outerWidth *= scale;
+                outerHeight *= scale;
+                if (!measuringTable && y + outerHeight > FlowLimit)
                 {
                     var previousLeft = FlowLeft;
                     AdvanceFlow();
                     x += FlowLeft - previousLeft;
-                    var columnScale = Math.Min(1, FlowWidth / width);
+                    var columnScale = Math.Min(1, FlowWidth / outerWidth);
                     width *= columnScale;
                     height *= columnScale;
+                    outerWidth *= columnScale;
+                    outerHeight *= columnScale;
+                    scale *= columnScale;
+                    available = FlowWidth;
                 }
-                imageY = y;
-                y += height;
+                x += effectLeft * scale + (alignment == "center" ? Math.Max(0, (available - outerWidth) / 2)
+                    : alignment is "right" or "end" ? Math.Max(0, available - outerWidth) : 0);
+                imageY = y + effectTop * scale;
+                y += outerHeight;
             }
             else
             {
