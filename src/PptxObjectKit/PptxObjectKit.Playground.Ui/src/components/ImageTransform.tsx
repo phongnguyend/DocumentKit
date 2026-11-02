@@ -1,9 +1,9 @@
 import { useEffect, useRef, useState, type PointerEvent } from 'react';
-import type { ImageObject } from './ImageEditor';
+type TransformObject = { id: string; x: number; y: number; width: number; height: number; rotation?: number };
 
 type Bounds = { x: number; y: number; width: number; height: number };
 type Gesture = { pointer: number; startX: number; startY: number; scaleX: number; scaleY: number; handle: string; original: Bounds; next: Bounds; target: HTMLElement };
-export function ImageTransform({ image, slideWidth, slideHeight, busy, onSave }: { image: ImageObject; slideWidth: number; slideHeight: number; busy: boolean; onSave: (bounds: Bounds) => Promise<boolean> }) {
+export function ImageTransform({ image, slideWidth, slideHeight, busy, onSave, kind = 'image' }: { kind?: 'image' | 'text'; image: TransformObject; slideWidth: number; slideHeight: number; busy: boolean; onSave: (bounds: Bounds) => Promise<boolean> }) {
   const [preview, setPreview] = useState<Bounds>(image);
   const gesture = useRef<Gesture | null>(null);
   useEffect(() => {
@@ -81,11 +81,11 @@ export function ImageTransform({ image, slideWidth, slideHeight, busy, onSave }:
       setPreview(image);
     }
   }
-  return <div className="image-transform" aria-label="Move selected image" role="group" style={{ left: `${preview.x / slideWidth * 100}%`, top: `${preview.y / slideHeight * 100}%`, width: `${preview.width / slideWidth * 100}%`, height: `${preview.height / slideHeight * 100}%`, transform: `rotate(${image.rotation ?? 0}deg)`, cursor: busy ? 'wait' : 'move' }} onClick={event => event.stopPropagation()} onPointerDown={event => start(event, 'move')} onPointerMove={move} onPointerUp={finish} onPointerCancel={cancel} onLostPointerCapture={() => {
+  return <div className="image-transform" aria-label={`Move selected ${kind}`} role="group" style={{ left: `${preview.x / slideWidth * 100}%`, top: `${preview.y / slideHeight * 100}%`, width: `${preview.width / slideWidth * 100}%`, height: `${preview.height / slideHeight * 100}%`, transform: `rotate(${image.rotation ?? 0}deg)`, cursor: busy ? 'wait' : 'move' }} onClick={event => event.stopPropagation()} onPointerDown={event => start(event, 'move')} onPointerMove={move} onPointerUp={finish} onPointerCancel={cancel} onLostPointerCapture={() => {
     if (gesture.current) {
       cancel();
     }
   }}>
-    {['nw', 'n', 'ne', 'e', 'se', 's', 'sw', 'w'].map(handle => <button key={handle} type="button" className={`image-resize-handle handle-${handle}`} aria-label={`Resize image ${handle}`} disabled={busy} onPointerDown={event => start(event, handle)} />)}
+    {['nw', 'n', 'ne', 'e', 'se', 's', 'sw', 'w'].map(handle => <button key={handle} type="button" className={`image-resize-handle handle-${handle}`} aria-label={`Resize ${kind} ${handle}`} disabled={busy} onPointerDown={event => start(event, handle)} />)}
   </div>;
 }

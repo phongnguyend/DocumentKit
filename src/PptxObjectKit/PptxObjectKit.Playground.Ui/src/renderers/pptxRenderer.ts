@@ -156,7 +156,7 @@ export async function createPptxPreview(bytes: ArrayBuffer) {
             continue;
           }
           const clone = object.cloneNode(true) as Element;
-          for (const blip of descendants(clone, 'blip')) {
+          for (const blip of [...descendants(clone, 'blip'), ...descendants(clone, 'svgBlip')]) {
             const ns = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships';
             const id = blip.getAttributeNS(ns, 'embed');
             const rel = layerRels ? descendants(layerRels, 'Relationship').find(item => item.getAttribute('Id') === id && item.getAttribute('TargetMode') !== 'External') : null;
@@ -543,6 +543,7 @@ function text(context: CanvasRenderingContext2D, body: Element, width: number, h
       first.marker = { ...firstRun, value, size, font: `${size}px Arial, sans-serif`, markerX: left + margin + number(pPr, 'indent') / emu, markerColor: child(pPr, 'buClr') ? color(child(child(pPr, 'buClr'), 'srgbClr')) : undefined };
     }
   }
+  const objectBounds = { left: Infinity, top: Infinity, right: -Infinity, bottom: -Infinity };
   const total = lines.reduce((sum, line) => sum + line.advance + (line.before ?? 0), 0);
   const anchor = settings?.getAttribute('anchor');
   let y = top + (anchor === 'ctr' ? (height - top - bottom - total) / 2 : anchor === 'b' ? height - top - bottom - total : 0);
@@ -564,13 +565,17 @@ function text(context: CanvasRenderingContext2D, body: Element, width: number, h
         span.textContent = fragment.value;
         const objectId = body.getAttribute('data-object-id');
         if (objectId) {
-          span.dataset.objectId = objectId;
+          span.dataset.textObjectId = objectId;
         }
         span.style.font = context.font;
         const ascent = context.measureText(fragment.value).fontBoundingBoxAscent ?? fragment.size * .9;
         span.style.lineHeight = `${fragment.size * 1.2}px`;
         span.style.width = `${fragment.width}px`;
         span.style.height = `${fragment.size * 1.2}px`;
+        objectBounds.left = Math.min(objectBounds.left, drawX);
+        objectBounds.top = Math.min(objectBounds.top, baseline - ascent);
+        objectBounds.right = Math.max(objectBounds.right, drawX + fragment.width);
+        objectBounds.bottom = Math.max(objectBounds.bottom, baseline - ascent + fragment.size * 1.2);
         const matrix = context.getTransform().translate(drawX, baseline - ascent);
         span.style.transform = `matrix(${matrix.a},${matrix.b},${matrix.c},${matrix.d},${matrix.e},${matrix.f})`;
         textLayer.append(span);
@@ -580,6 +585,47 @@ function text(context: CanvasRenderingContext2D, body: Element, width: number, h
       }
     }
     y += line.advance;
+  }
+  const objectId = body.getAttribute('data-object-id');
+  if (textLayer && objectId && Number.isFinite(objectBounds.left)) {
+    const hit = document.createElement('span');
+    hit.dataset.objectId = objectId;
+    hit.dataset.kind = 'text';
+    hit.className = 'text-object-hit';
+    hit.style.width = `${objectBounds.right - objectBounds.left}px`;
+    hit.style.height = `${objectBounds.bottom - objectBounds.top}px`;
+    const matrix = context.getTransform().translate(objectBounds.left, objectBounds.top);
+    hit.style.transform = `matrix(${matrix.a},${matrix.b},${matrix.c},${matrix.d},${matrix.e},${matrix.f})`;
+    textLayer.append(hit);
+  }
+}
+
+/** SVG extensions often omit raster fallbacks and explicit pixel dimensions. */
+async function decodePicture(blob: Blob, path: string): Promise<ImageBitmap> {
+  if (!path.toLowerCase().endsWith('.svg')) {
+    return createImageBitmap(blob);
+  }
+  const xml = new DOMParser().parseFromString(await blob.text(), 'image/svg+xml');
+  const root = xml.documentElement;
+  if (root.localName !== 'svg' || xml.querySelector('parsererror')) {
+    throw new Error('Invalid SVG picture.');
+  }
+  if (!root.hasAttribute('width') || !root.hasAttribute('height')) {
+    const viewBox = (root.getAttribute('viewBox') ?? '').trim().split(/[\s,]+/).map(Number);
+    const width = viewBox.length === 4 && viewBox[2] > 0 ? viewBox[2] : 300;
+    const height = viewBox.length === 4 && viewBox[3] > 0 ? viewBox[3] : 150;
+    const scale = Math.min(1, 4096 / Math.max(width, height));
+    root.setAttribute('width', String(Math.max(1, width * scale)));
+    root.setAttribute('height', String(Math.max(1, height * scale)));
+  }
+  const url = URL.createObjectURL(new Blob([new XMLSerializer().serializeToString(xml)], { type: 'image/svg+xml' }));
+  try {
+    const image = new Image();
+    image.src = url;
+    await image.decode();
+    return await createImageBitmap(image);
+  } finally {
+    URL.revokeObjectURL(url);
   }
 }
 
@@ -654,16 +700,23 @@ async function renderSlide(canvas: HTMLCanvasElement, slide: Slide, signal?: Abo
               textLayer.append(hit);
             }
             const blip = descendants(object, 'blip')[0];
-            const id = blip.getAttributeNS('http://schemas.openxmlformats.org/officeDocument/2006/relationships', 'embed') ?? '';
-            const path = slide.images.get(id);
-            const entry = path ? slide.zip.file(path) : null;
+            const ns = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships';
+            const references = [descendants(object, 'svgBlip')[0]?.getAttributeNS(ns, 'embed'), blip?.getAttributeNS(ns, 'embed')];
+            const candidates = references.map(id => id ? slide.images.get(id) : undefined).filter((path): path is string => !!path && !!slide.zip.file(path));
+            const entry = candidates.length > 0;
             if (!entry) {
               throw new Error('Missing picture in PowerPoint preview.');
             }
-            let bitmap: ImageBitmap;
-            try {
-              bitmap = await createImageBitmap(await entry.async('blob'));
-            } catch {
+            let bitmap: ImageBitmap | undefined;
+            for (const path of candidates) {
+              try {
+                bitmap = await decodePicture(await slide.zip.file(path)!.async('blob'), path);
+                break;
+              } catch {
+                // Try a raster fallback when the SVG extension cannot be decoded.
+              }
+            }
+            if (!bitmap) {
               continue;
             }
             try {

@@ -29,6 +29,7 @@ public static class PptxSlideExtractor
         {
             var xml = document.Xml(path);
             var objects = new List<PptxTextObject>();
+            var geometry = new PptxTextGeometry(document, path);
             foreach (var shape in xml.Descendants(P + "sp"))
             {
                 if (shape.Element(P + "txBody") is not { } body)
@@ -36,7 +37,7 @@ public static class PptxSlideExtractor
                     continue;
                 }
                 var properties = shape.Element(P + "nvSpPr")?.Element(P + "cNvPr");
-                objects.Add(new((string?)properties?.Attribute("id") ?? "", (string?)properties?.Attribute("name") ?? "Text", Text(body)));
+                objects.Add(new((string?)properties?.Attribute("id") ?? "", (string?)properties?.Attribute("name") ?? "Text", Text(body)) { Bounds = geometry.Bounds(shape) });
             }
             var title = xml.Descendants(P + "sp").FirstOrDefault(shape => shape.Descendants(P + "ph").Any(ph => (string?)ph.Attribute("type") is "title" or "ctrTitle"));
             var titleText = title?.Element(P + "txBody") is { } titleBody ? Text(titleBody) : objects.FirstOrDefault()?.Text;

@@ -25,7 +25,16 @@ test('open, select text, edit, reorder, undo, Markdown, delete and download', as
   await page.getByRole('button', { name: 'Select objects', exact: true }).click();
   await page.locator('.text-layer span[data-object-id]').first().click();
   await expect(page.getByLabel('Text', { exact: true })).toHaveValue('PowerPoint to PDF test slide');
-  await expect(page.locator('.selected-object').first()).toBeVisible();
+  await expect(page.locator('.selected-object')).toHaveCount(1);
+  await expect(page.locator('.selected-object')).toBeVisible();
+  expect(await page.locator('.selected-object').evaluate(hit => {
+    const rect = hit.getBoundingClientRect();
+    const fragments = [...hit.parentElement.querySelectorAll('[data-text-object-id]')].filter(fragment => fragment.dataset.textObjectId === hit.dataset.objectId);
+    return fragments.length > 1 && fragments.every(fragment => {
+      const bounds = fragment.getBoundingClientRect();
+      return bounds.left >= rect.left - 1 && bounds.right <= rect.right + 1 && bounds.top >= rect.top - 1 && bounds.bottom <= rect.bottom + 1;
+    });
+  })).toBe(true);
   await page.getByRole('button', { name: 'Select text', exact: true }).click();
   await page.getByLabel('Text', { exact: true }).fill('Updated presentation title');
   await page.getByRole('button', { name: 'Save text' }).click();
@@ -440,4 +449,125 @@ test('image picker supports drawing, QR replacement, drop and source sizing', as
   await expect(page.getByLabel('Placement height')).toHaveValue('60');
   await page.getByRole('button', { name: 'Insert image', exact: true }).click();
   await expect(page.locator('.text-layer [data-kind="image"]')).toHaveCount(2);
+});
+
+
+test('renders SVG-only pictures on slides and layouts with independent relationship IDs', async ({ page }) => {
+  const { default: JSZip } = await import('jszip');
+  const zip = await JSZip.loadAsync(await readFile(fixture));
+  const ns = 'xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" xmlns:asvg="http://schemas.microsoft.com/office/drawing/2016/SVG/main"';
+  const picture = x => `<p:pic><p:nvPicPr><p:cNvPr id="20" name="SVG icon"/><p:cNvPicPr/><p:nvPr/></p:nvPicPr><p:blipFill><a:blip><a:extLst><a:ext uri="{96DAC541-7B7A-43D3-8B79-37D633B846F1}"><asvg:svgBlip r:embed="image"/></a:ext></a:extLst></a:blip><a:stretch><a:fillRect/></a:stretch></p:blipFill><p:spPr><a:xfrm><a:off x="${x}" y="1270000"/><a:ext cx="1270000" cy="1270000"/></a:xfrm></p:spPr></p:pic>`;
+  const relationships = contents => `<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">${contents}</Relationships>`;
+  const relationship = (id, type, target) => `<Relationship Id="${id}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/${type}" Target="${target}"/>`;
+  zip.file('ppt/slides/slide1.xml', `<p:sld ${ns}><p:cSld><p:spTree>${picture(1270000)}</p:spTree></p:cSld></p:sld>`);
+  zip.file('ppt/slides/_rels/slide1.xml.rels', relationships(relationship('image', 'image', '../media/red.svg') + relationship('layout', 'slideLayout', '../slideLayouts/svg.xml')));
+  zip.file('ppt/slideLayouts/svg.xml', `<p:sldLayout ${ns}><p:cSld><p:spTree>${picture(3810000)}</p:spTree></p:cSld></p:sldLayout>`);
+  zip.file('ppt/slideLayouts/_rels/svg.xml.rels', relationships(relationship('image', 'image', '../media/green.svg')));
+  for (const [name, color] of [['red', '#ff0000'], ['green', '#00ff00']]) {
+    zip.file(`ppt/media/${name}.svg`, `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 96"><rect width="96" height="96" fill="${color}"/></svg>`);
+  }
+  await page.goto('/');
+  await page.getByLabel('Open PPTX', { exact: true }).setInputFiles({ name: 'svg-icons.pptx', mimeType: 'application/octet-stream', buffer: await zip.generateAsync({ type: 'nodebuffer' }) });
+  await expect(page.getByRole('img', { name: 'Slide 1', exact: true })).toBeVisible();
+  const colors = await page.locator('.canvas-host canvas').evaluate(canvas => {
+    const pixels = canvas.getContext('2d').getImageData(0, 0, canvas.width, canvas.height).data;
+    let red = 0, green = 0;
+    for (let i = 0; i < pixels.length; i += 4) {
+      if (pixels[i] > 200 && pixels[i + 1] < 30) {
+        red++;
+      }
+      if (pixels[i + 1] > 200 && pixels[i] < 30) {
+        green++;
+      }
+    }
+    return { red, green };
+  });
+  expect(colors.red).toBeGreaterThan(1000);
+  expect(colors.green).toBeGreaterThan(1000);
+  await expect(page.getByText(/Preview unavailable:/)).toHaveCount(0);
+});
+
+
+test('duplicate and insert blank slides, navigate, undo and save independently', async ({ page, request }) => {
+  await page.goto('/');
+  await page.getByLabel('Open PPTX', { exact: true }).setInputFiles({ name: 'insert.pptx', mimeType: 'application/octet-stream', buffer: await readFile(fixture) });
+  await expect(page.getByRole('img', { name: 'Slide 1', exact: true })).toBeVisible();
+  async function action(name) {
+    await page.locator('summary').filter({ hasText: /^Slides$/ }).click();
+    await page.getByRole('button', { name, exact: true }).click();
+  }
+  await action('Duplicate slide');
+  await expect(page.getByRole('combobox', { name: 'Slide', exact: true })).toHaveValue('2');
+  await expect(page.locator('.slides-panel li')).toHaveCount(3);
+  await page.locator('.inspector .object-list button').first().click();
+  await page.getByLabel('Text', { exact: true }).fill('Independent duplicate');
+  await page.getByRole('button', { name: 'Save text' }).click();
+  await expect(page.locator('.text-layer')).toContainText('Independent duplicate');
+  await page.getByRole('combobox', { name: 'Slide', exact: true }).selectOption('1');
+  await expect(page.locator('.text-layer')).toContainText('PowerPoint to PDF test slide');
+  await action('Blank slide after current');
+  await expect(page.getByRole('combobox', { name: 'Slide', exact: true })).toHaveValue('2');
+  await expect(page.getByRole('img', { name: 'Slide 2', exact: true })).toBeVisible();
+  await expect(page.locator('.text-layer span')).toHaveCount(0);
+  expect(await page.locator('.canvas-host canvas').evaluate(canvas => {
+    const rgba = canvas.getContext('2d').getImageData(0, 0, canvas.width, canvas.height).data;
+    return rgba.every(value => value === 255);
+  })).toBe(true);
+  await action('Blank slide at end');
+  await expect(page.getByRole('combobox', { name: 'Slide', exact: true })).toHaveValue('5');
+  await expect(page.locator('.slides-panel li')).toHaveCount(5);
+  await page.getByRole('button', { name: 'Undo', exact: true }).click();
+  await expect(page.locator('.slides-panel li')).toHaveCount(4);
+  await page.getByRole('button', { name: 'Redo', exact: true }).click();
+  await expect(page.locator('.slides-panel li')).toHaveCount(5);
+  const saved = page.waitForEvent('download');
+  await page.getByRole('button', { name: 'Download PPTX', exact: true }).click();
+  const response = await request.post('/api/documents/inspect', { data: await readFile(await (await saved).path()) });
+  expect(response.ok()).toBe(true);
+  const slides = (await response.json()).slides;
+  expect(slides).toHaveLength(5);
+  expect(slides[2].title).toBe('Independent duplicate');
+  expect(slides[4].textObjects).toHaveLength(0);
+});
+
+
+test('drag and resize text boxes with cancel, automatic save and undo', async ({ page, request }) => {
+  await page.goto('/');
+  await page.getByLabel('Open PPTX', { exact: true }).setInputFiles({ name: 'text-transform.pptx', mimeType: 'application/octet-stream', buffer: await readFile(fixture) });
+  await expect(page.getByRole('img', { name: 'Slide 1', exact: true })).toBeVisible();
+  await page.getByRole('button', { name: 'Select objects', exact: true }).click();
+  await page.locator('.text-object-hit').first().click();
+  const transform = page.getByRole('group', { name: 'Move selected text', exact: true });
+  const original = await transform.boundingBox();
+  await page.mouse.move(original.x + 20, original.y + 20);
+  await page.mouse.down();
+  await page.mouse.move(original.x + 60, original.y + 50, { steps: 4 });
+  await page.keyboard.press('Escape');
+  await page.mouse.up();
+  expect((await transform.boundingBox()).x).toBeCloseTo(original.x, 0);
+  await page.mouse.move(original.x + 20, original.y + 20);
+  await page.mouse.down();
+  await page.mouse.move(original.x + 60, original.y + 50, { steps: 4 });
+  await page.mouse.up();
+  await expect(transform).toHaveCount(0);
+  await page.locator('.inspector .object-list button').first().click();
+  expect((await transform.boundingBox()).x).toBeGreaterThan(original.x + 20);
+  const beforeResize = await transform.boundingBox();
+  const handle = await page.getByRole('button', { name: 'Resize text se', exact: true }).boundingBox();
+  await page.mouse.move(handle.x + 5, handle.y + 5);
+  await page.mouse.down();
+  await page.mouse.move(handle.x - 75, handle.y + 25, { steps: 5 });
+  await page.mouse.up();
+  await expect(transform).toHaveCount(0);
+  await page.locator('.inspector .object-list button').first().click();
+  expect((await transform.boundingBox()).width).toBeLessThan(beforeResize.width - 40);
+  await expect(page.locator('.text-layer')).toContainText('PowerPoint to PDF test slide');
+  await page.getByRole('button', { name: 'Undo', exact: true }).click();
+  await page.locator('.inspector .object-list button').first().click();
+  expect((await transform.boundingBox()).width).toBeCloseTo(beforeResize.width, 0);
+  const saved = page.waitForEvent('download');
+  await page.getByRole('button', { name: 'Download PPTX', exact: true }).click();
+  const response = await request.post('/api/documents/inspect', { data: await readFile(await (await saved).path()) });
+  expect(response.ok()).toBe(true);
+  expect((await response.json()).slides[0].textObjects[0].bounds.x).toBeGreaterThan(0);
 });

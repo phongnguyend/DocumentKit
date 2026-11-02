@@ -33,7 +33,12 @@ public sealed class PptxObjectDocument
     public PptxObjectDocument Clone() => new(Parts.ToDictionary(pair => pair.Key, pair => pair.Value.ToArray(), StringComparer.Ordinal));
 }
 
-public sealed record PptxTextObject(string Id, string Name, string Text);
+public sealed record PptxTextObject(string Id, string Name, string Text)
+{
+    public PptxTextBounds? Bounds { get; init; }
+}
+
+public sealed record PptxTextBounds(double X, double Y, double Width, double Height, double Rotation, bool Grouped);
 
 public sealed record PptxSlide(int Number, string Id, string PartName, string Title, List<PptxTextObject> TextObjects, int PictureCount, string Notes)
 {

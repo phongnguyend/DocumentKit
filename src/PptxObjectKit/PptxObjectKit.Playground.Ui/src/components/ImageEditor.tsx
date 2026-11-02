@@ -1,17 +1,26 @@
 import { useState } from 'react';
-import { Download, ImagePlus, Save, Trash2 } from 'lucide-react';
+import { Download, ImagePlus, Save, Trash2, ScanText } from 'lucide-react';
 import { ImageSourceDialog } from './ImageSourceDialog';
+import { ImageOcrDialog } from './ImageOcrDialog';
 import { Modal } from './Modal';
 
 export type ImageObject = { id: string; name: string; partName: string; x: number; y: number; width: number; height: number; grouped: boolean; rotation?: number };
-export function ImageEditor({ image, busy, onEdit, onDownload }: { image: ImageObject; busy: boolean; onEdit: (edit: object) => Promise<boolean>; onDownload: () => Promise<void> }) {
+export function ImageEditor({ image, page, loadImage, busy, onEdit, onDownload }: { image: ImageObject; page: number; loadImage: () => Promise<Blob>; busy: boolean; onEdit: (edit: object) => Promise<boolean>; onDownload: () => Promise<void> }) {
   const [bounds, setBounds] = useState({ x: image.x, y: image.y, width: image.width, height: image.height });
+  const [ocr, setOcr] = useState<Blob>();
+  const [loadingOcr, setLoadingOcr] = useState(false);
   const [error, setError] = useState('');
   const [confirm, setConfirm] = useState(false);
   const [replacing, setReplacing] = useState(false);
-  const disabled = busy;
+  const disabled = busy || loadingOcr;
   return <section className="text-editor image-editor"><h2>{image.name}</h2>{!image.grouped && <p className="help">Drag the selected image to move it. Drag a handle to resize. Release to save; Escape cancels.</p>}
     <button disabled={disabled} onClick={() => void onDownload().catch(cause => setError(cause.message))}><Download size={16} />Download image</button>
+    <button disabled={disabled} onClick={() => {
+      setLoadingOcr(true);
+      setError('');
+      void loadImage().then(setOcr).catch(cause => setError(cause.message)).finally(() => setLoadingOcr(false));
+    }}><ScanText size={16} />{loadingOcr ? 'Preparing OCR...' : 'Recognize text (OCR)'}</button>
+    {ocr && <ImageOcrDialog blob={ocr} page={page} imageName={image.name} onClose={() => setOcr(undefined)} onApply={onEdit} />}
     <button disabled={disabled} onClick={() => setReplacing(true)}><ImagePlus size={16} />Replace image</button>
     {replacing && <ImageSourceDialog initialBounds={bounds} replacing grouped={image.grouped} onClose={() => setReplacing(false)} onApply={request => onEdit({ ...request, kind: 'replace-image' })} />}
     <p className="help">Replacement keeps the existing position, crop and rotation.</p>
