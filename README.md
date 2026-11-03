@@ -3,6 +3,7 @@
 Document libraries, conversion services, CLIs, and browser playgrounds built with
 .NET 10 and React. Each solution has its own build workflow and setup instructions.
 
+- [XlsxObjectKit](src/XlsxObjectKit/README.md): inspect and edit XLSX workbooks in a native worksheet grid, manage worksheet tabs, format cells, and save changes through a .NET API or CLI.
 - [DocxObjectKit](src/DocxObjectKit/README.md): inspect, edit and preview Word documents, manage text and images, extract Markdown, and export PDFs with a native .NET engine.
 - [PptxObjectKit](src/PptxObjectKit/README.md): inspect, edit and preview PowerPoint presentations, manage slides, text and images, extract Markdown, and export PDFs with a native .NET engine.
 - [PdfObjectKit](src/PdfObjectKit/README.md): inspect, edit and render PDFs; manage pages, text, images, forms and annotations; extract Markdown; and export editable Word documents and PowerPoint slides.
@@ -19,6 +20,7 @@ browser-test jobs also use Node.js 22 and Playwright.
 
 | Workflow | Build and validation | Release publishing |
 | --- | --- | --- |
+| [XlsxObjectKit](.github/workflows/xlsxobjectkit.yml) | Release solution build; package/edit and Open XML validation tests; UI build and browser tests; Compose image builds | Not configured |
 | [DocxObjectKit](.github/workflows/docxobjectkit.yml) | Release solution build; package/edit and native PDF tests; UI build and browser tests | Not configured |
 | [PptxObjectKit](.github/workflows/pptxobjectkit.yml) | Release solution build; core and native PDF tests; UI build and browser tests; Compose image builds | Not configured |
 | [PdfObjectKit](.github/workflows/pdfobjectkit.yml) | Core, Word and PowerPoint extension, Markdown snapshot, CLI and UI-helper tests; UI build and browser tests; Docker image builds | NuGet packages and Docker images |

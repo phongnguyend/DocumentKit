@@ -1,0 +1,17 @@
+services:
+  api:
+    build:
+      context: .
+      dockerfile: XlsxObjectKit.Playground.Api/Dockerfile
+    ports: ["5094:8080"]
+  playground:
+    build: ./XlsxObjectKit.Playground.Ui
+    ports: ["8128:80"]
+    depends_on: [api]
+  cli:
+    profiles: [cli]
+    build:
+      context: .
+      dockerfile: XlsxObjectKit.Cli/Dockerfile
+    volumes: ["./files:/files"]
+    working_dir: /files

@@ -1,0 +1,40 @@
+name: XlsxObjectKit Build
+on:
+  push:
+    paths: ['src/XlsxObjectKit/**', '.github/workflows/xlsxobjectkit.yml']
+  pull_request:
+    paths: ['src/XlsxObjectKit/**', '.github/workflows/xlsxobjectkit.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: '10.0.x'
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: src/XlsxObjectKit/XlsxObjectKit.Playground.Ui/package-lock.json
+      - run: dotnet build src/XlsxObjectKit/XlsxObjectKit.slnx -c Release
+      - run: dotnet run --project src/XlsxObjectKit/XlsxObjectKit.Tests -c Release --no-build
+      - name: Build and test UI
+        working-directory: src/XlsxObjectKit/XlsxObjectKit.Playground.Ui
+        run: |
+          npm ci
+          npm run build
+          npx playwright install --with-deps chromium
+          npx playwright test
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: xlsxobjectkit-test-results
+          path: src/XlsxObjectKit/XlsxObjectKit.Playground.Ui/test-results/
+      - name: Build service images
+        working-directory: src/XlsxObjectKit
+        run: docker compose build

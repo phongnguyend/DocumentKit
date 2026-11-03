@@ -1,0 +1,61 @@
+html, body, #root { height: 100%; overflow: hidden; }
+.tabbed-playground { height: 100dvh; }
+.workbook-panel { flex: 1; min-height: 0; display: flex; }
+.workbook-panel[hidden] { display: none; }
+.workbook-shell { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+.toolbar-controls { display: flex; align-items: center; gap: 8px; margin-left: auto; }
+.document-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.upload-button { position: relative; display: inline-flex; gap: 8px; align-items: center; padding: 9px 12px; background: #285fd5; color: white; border-radius: 7px; font-size: 13px; cursor: pointer; }
+.upload-button input { position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%; }
+.file-drag::after { content: 'Drop XLSX files to open'; position: fixed; inset: 10px; background: #edf3fff2; border: 3px dashed #386cdc; border-radius: 14px; display: grid; place-items: center; font-size: 26px; color: #285fd5; pointer-events: none; z-index: 100; }
+.spreadsheet-layout { flex: 1; min-height: 0; display: grid; grid-template-columns: 190px minmax(0, 1fr) 280px; }
+.sheets-panel, .inspector { background: white; padding: 20px 16px; overflow: auto; }
+.sheets-panel { border-right: 1px solid #dce4ef; }
+.sheets-panel > button { display: flex; width: 100%; justify-content: flex-start; margin: 6px 0; }
+.sheets-panel > button span { overflow: hidden; text-overflow: ellipsis; }
+.sheets-panel small, h2 small { color: #7a8da8; font-size: 10px; font-weight: 400; margin-left: auto; }
+.sheets-panel h2, .inspector h2 { display: flex; align-items: center; }
+.add-sheet { border-style: dashed; }
+.sheet-workspace { display: flex; flex-direction: column; min-height: 0; min-width: 0; overflow: hidden; background: #edf1f7; }
+.formula-bar { display: flex; gap: 8px; align-items: center; padding: 10px 12px; background: white; border-bottom: 1px solid #dce4ef; }
+.formula-bar input { min-width: 0; flex: 1; }
+.formula-bar input:first-child { flex: 0 0 78px; width: 78px; text-transform: uppercase; }
+.fx { font-family: Georgia, serif; font-style: italic; color: #8190a5; }
+input, select { border: 1px solid #cdd8e7; border-radius: 6px; padding: 8px; color: inherit; background: white; }
+input:focus-visible, select:focus-visible { outline: 2px solid #8bb3ff; outline-offset: 1px; }
+.cell-grid { flex: 1; min-height: 0; overflow: auto; position: relative; background: white; outline: none; }
+.cell-grid:focus-visible { box-shadow: inset 0 0 0 2px #aac5fa; }
+.grid-surface { position: relative; }
+.column-headings { position: sticky; top: 0; z-index: 5; height: 32px; }
+.column-headings > div { position: absolute; top: 0; height: 32px; display: grid; place-items: center; border-right: 1px solid #dce4ef; border-bottom: 1px solid #cdd8e7; background: #f3f6fb; font-size: 12px; color: #60738e; }
+.corner { left: 0; width: 48px; }
+.row-heading { position: absolute; left: 0; width: 48px; display: grid; place-items: center; background: #f3f6fb; border-right: 1px solid #cdd8e7; border-bottom: 1px solid #dce4ef; color: #60738e; font-size: 11px; }
+.grid-cell { position: absolute; border-right: 1px solid #e2e8f0; border-bottom: 1px solid #e2e8f0; padding: 5px 7px; font-size: 13px; white-space: pre; overflow: hidden; cursor: cell; }
+.grid-cell.selected { outline: 2px solid #386cdc; outline-offset: -2px; z-index: 2; }
+.grid-cell input { position: absolute; inset: 0; padding: 3px 5px; width: 100%; height: 100%; border: 0; border-radius: 0; font: inherit; outline: 2px solid #386cdc; outline-offset: -2px; }
+.formula-pending { color: #7c60a6; font-style: italic; }
+.sheet-status { display: flex; gap: 12px; justify-content: space-between; padding: 10px 16px; background: #fff; border-top: 1px solid #dce4ef; color: #6c7c92; font-size: 11px; }
+.inspector label { display: grid; gap: 7px; font-size: 12px; color: #62748f; margin: 12px 0; }
+.inspector select, .inspector input { width: 100%; }
+.inspector input[type=color] { height: 36px; padding: 4px; }
+.cell-summary { display: flex; align-items: center; gap: 8px; padding: 14px 0; border-top: 1px solid #e2e8f0; }
+.cell-summary span { font-size: 12px; color: #75869d; margin-left: auto; }
+.format-editor { border-top: 1px solid #e2e8f0; margin-top: 22px; padding-top: 18px; }
+.format-toggles { display: flex; gap: 6px; }
+.modal { width: min(460px, 95vw); max-height: 85vh; padding: 24px; }
+.modal-heading { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 16px; }
+.modal-heading h2 { margin: 0; }
+.modal label { display: grid; gap: 8px; font-size: 13px; }
+.modal-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 24px; }
+.busy-status { position: fixed; right: 16px; bottom: 6px; font-size: 12px; padding: 6px 12px; border-radius: 6px; background: #edf3ff; color: #285fd5; }
+.welcome-card { text-align: center; max-width: 540px; padding: 40px; background: white; border: 1px solid #dce4ef; border-radius: 16px; box-shadow: 0 10px 30px #20395b0a; }
+.welcome-card > svg { color: #386cdc; }
+.welcome-card h1 { font-size: 23px; }
+@media(max-width: 1050px) { .spreadsheet-layout { grid-template-columns: 150px minmax(0, 1fr) 240px; } .sheet-status span:last-child { display: none; } }
+@media(max-width: 760px) { .spreadsheet-layout { grid-template-columns: minmax(0, 1fr) 220px; } .sheets-panel { display: none; } header { padding: 12px; } .header-actions { gap: 4px; } .document-name { display: none; } }
+
+.mobile-sheet-select { display: none; }
+@media(max-width: 760px) { .mobile-sheet-select { display: block; max-width: 130px; } }
+
+.grid-cell { display: flex; flex-direction: column; padding-top: 1px; padding-bottom: 1px; line-height: 1.2; }
+.cell-text { display: block; width: 100%; flex: 0 0 auto; transform-origin: center; }

@@ -1,0 +1,47 @@
+import { test, expect } from '@playwright/test';
+import { execFileSync } from 'node:child_process';
+import { readFile } from 'node:fs/promises';
+import { resolve } from 'node:path';
+
+test('recalculate uploaded caches, update dependencies and download calculated values', async ({ page, request }, info) => {
+  const fixture = info.outputPath('calculation.xlsx');
+  execFileSync('dotnet', ['run', '--project', resolve('../XlsxObjectKit.Tests'), '-c', 'Release', '--no-build', '--', '--write-calculation-fixture', fixture]);
+  await page.goto('/');
+  await page.getByLabel('Open XLSX', { exact: true }).setInputFiles(fixture);
+  const b1 = page.getByRole('gridcell', { name: 'B1', exact: true });
+  await expect(b1).toHaveText('999');
+  await page.getByRole('button', { name: 'Recalculate', exact: true }).click();
+  await expect(b1).toHaveText('3');
+  await page.getByRole('gridcell', { name: 'A2', exact: true }).click();
+  await page.getByRole('textbox', { name: 'Formula bar' }).fill('10');
+  await page.getByRole('button', { name: 'Apply cell value' }).click();
+  await expect(b1).toHaveText('11');
+  await b1.click();
+  await expect(page.getByRole('textbox', { name: 'Formula bar' })).toHaveValue('=SUM(A1:A2)');
+  await page.getByRole('gridcell', { name: 'C1', exact: true }).click();
+  await page.getByRole('textbox', { name: 'Formula bar' }).fill('=IF(TRUE,"",0)');
+  await page.getByRole('button', { name: 'Apply cell value' }).click();
+  await expect(page.locator('.inspector')).toContainText('Calculated result: (empty text)');
+  await expect(page.getByRole('gridcell', { name: 'C1', exact: true })).toHaveText('');
+  const downloaded = page.waitForEvent('download');
+  await page.getByRole('button', { name: 'Download XLSX' }).click();
+  const download = await downloaded;
+  const response = await request.post('/api/documents/inspect', { data: await readFile(await download.path()) });
+  const document = await response.json();
+  expect(document.sheets[0].cells.find(cell => cell.address === 'B1')).toMatchObject({ value: '11', formula: 'SUM(A1:A2)', hasCachedValue: true });
+});
+
+test('unsupported formulas and cycles are shown without fabricated results', async ({ page }) => {
+  await page.goto('/');
+  await page.getByRole('button', { name: 'New workbook', exact: true }).click();
+  await page.getByRole('textbox', { name: 'Formula bar' }).fill('=IFERROR(VLOOKUP(1,A2:A3,1),0)');
+  await page.getByRole('button', { name: 'Apply cell value' }).click();
+  await expect(page.locator('.inspector')).toContainText('Function VLOOKUP is not supported');
+  await expect(page.getByRole('gridcell', { name: 'A1', exact: true })).toHaveText('=IFERROR(VLOOKUP(1,A2:A3,1),0)');
+  await page.getByRole('textbox', { name: 'Formula bar' }).fill('=A1+1');
+  await page.getByRole('button', { name: 'Apply cell value' }).click();
+  await expect(page.locator('.inspector')).toContainText('Circular reference detected');
+  await page.getByRole('textbox', { name: 'Formula bar' }).fill('=1/0');
+  await page.getByRole('button', { name: 'Apply cell value' }).click();
+  await expect(page.getByRole('gridcell', { name: 'A1', exact: true })).toHaveText('#DIV/0!');
+});

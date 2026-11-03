@@ -1,0 +1,7 @@
+<Solution>
+  <Project Path="XlsxObjectKit/XlsxObjectKit.csproj" />
+  <Project Path="XlsxObjectKit.Application/XlsxObjectKit.Application.csproj" />
+  <Project Path="XlsxObjectKit.Cli/XlsxObjectKit.Cli.csproj" />
+  <Project Path="XlsxObjectKit.Tests/XlsxObjectKit.Tests.csproj" />
+  <Project Path="XlsxObjectKit.Playground.Api/XlsxObjectKit.Playground.Api.csproj" />
+</Solution>
