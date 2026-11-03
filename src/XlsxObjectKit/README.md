@@ -240,3 +240,11 @@ runs browser tests, and builds the Compose images.
   secure data removal.
 - The playground has no authentication or persistent storage. Deploy behind your
   own access controls and resource limits if exposing it beyond local development.
+
+Click a column letter or row number to select the entire column or row.
+Drag across header labels in either direction to select multiple columns or rows;
+release to keep the selection, or press Escape to cancel. The
+selection includes cells beyond the visible grid window. Merged cells do not expand
+header selections into adjacent rows or columns. Click a cell or press Escape to return to cell selection.
+Delete clears populated cells in the selected rows or columns (up to 10,000 per
+operation), with undo support. Header borders still resize independently.

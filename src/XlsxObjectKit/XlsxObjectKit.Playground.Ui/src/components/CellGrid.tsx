@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState, type PointerEvent } from 'react';
 import { DimensionHandle } from './DimensionHandle';
 import { WorksheetImage } from './WorksheetImage';
 import { columnPosition, rowPosition } from '../types';
@@ -16,10 +16,11 @@ export function CellGrid({ sheet, styles, selected, onSelect, onEdit, onPaste, b
   const [scroll, setScroll] = useState(0);
   const [viewportHeight, setViewportHeight] = useState(700);
   const [editing, setEditing] = useState<string | null>(null);
-  const [paintRange, setPaintRange] = useState<{ start: [number, number]; end: [number, number] } | null>(null);
+  const [paintRange, setPaintRange] = useState<{ start: [number, number]; end: [number, number]; axis?: 'row' | 'column'; anchor?: string } | null>(null);
   const [selection, setSelection] = useState<typeof paintRange>(null);
   const drag = useRef<typeof paintRange>(null);
   const suppressClick = useRef(false);
+  const preserveScroll = useRef(false);
   const host = useRef<HTMLDivElement>(null);
   const [selectedRow, selectedColumn] = parse(selected);
   // Bound the browser scroll area; Go to cell opens any other worksheet window.
@@ -59,6 +60,10 @@ export function CellGrid({ sheet, styles, selected, onSelect, onEdit, onPaste, b
   }, []);
   useEffect(() => {
     setEditing(null);
+    if (preserveScroll.current) {
+      preserveScroll.current = false;
+      return;
+    }
     const top = y[selectedRow - base - 1];
     if (host.current && (top < host.current.scrollTop + 32 || top > host.current.scrollTop + host.current.clientHeight - 40)) {
       host.current.scrollTop = Math.max(0, top - 50);
@@ -66,7 +71,7 @@ export function CellGrid({ sheet, styles, selected, onSelect, onEdit, onPaste, b
   }, [selected, sheet.id]);
 
   useEffect(() => {
-    setSelection(current => current && address(...current.start) === selected && !selectedImage ? current : null);
+    setSelection(current => current && (current.anchor ?? address(...current.start)) === selected && !selectedImage ? current : null);
   }, [selected, selectedImage]);
   useEffect(() => {
     setSelection(null);
@@ -88,6 +93,39 @@ export function CellGrid({ sheet, styles, selected, onSelect, onEdit, onPaste, b
     window.addEventListener('keydown', escape);
     return () => window.removeEventListener('keydown', escape);
   }, []);
+  function selectHeader(axis: 'row' | 'column', index: number) {
+    if (busy || onPaint) {
+      return;
+    }
+    cancelDrag();
+    setEditing(null);
+    const anchor = axis === 'column' ? address(selectedRow, index) : address(index, selectedColumn);
+    preserveScroll.current = anchor !== selected;
+    setSelection({
+      start: axis === 'column' ? [1, index] : [index, 1],
+      end: axis === 'column' ? [1048576, index] : [index, 16384],
+      axis,
+      anchor,
+    });
+    onSelect(anchor);
+    host.current?.focus();
+  }
+  function startHeaderDrag(event: PointerEvent<HTMLButtonElement>, axis: 'row' | 'column', index: number) {
+    if (busy || onPaint || event.button !== 0) {
+      return;
+    }
+    event.preventDefault();
+    setEditing(null);
+    drag.current = {
+      start: axis === 'column' ? [1, index] : [index, 1],
+      end: axis === 'column' ? [1048576, index] : [index, 16384],
+      axis,
+      anchor: axis === 'column' ? address(selectedRow, index) : address(index, selectedColumn),
+    };
+    setPaintRange(drag.current);
+    host.current?.focus({ preventScroll: true });
+    host.current?.setPointerCapture(event.pointerId);
+  }
   function updateDrag(clientX: number, clientY: number) {
     if (!drag.current || !host.current) {
       return;
@@ -98,7 +136,7 @@ export function CellGrid({ sheet, styles, selected, onSelect, onEdit, onPaste, b
     const ci = Math.max(0, Math.min(columns.length - 1, x.findIndex((value, i) => i < columns.length && x[i + 1] > px)));
     const ri = py >= y[count] ? count - 1 : Math.max(0, y.findIndex((value, i) => i < count && y[i + 1] > py));
     const column = px >= x[columns.length] ? columns.at(-1)! : columns[ci];
-    drag.current = { ...drag.current, end: [base + ri + 1, column] };
+    drag.current = { ...drag.current, end: drag.current.axis === 'column' ? [1048576, column] : drag.current.axis === 'row' ? [base + ri + 1, 16384] : [base + ri + 1, column] };
     setPaintRange(drag.current);
   }
   function boundsOf(range: NonNullable<typeof paintRange>) {
@@ -106,6 +144,10 @@ export function CellGrid({ sheet, styles, selected, onSelect, onEdit, onPaste, b
     let bottom = Math.max(range.start[0], range.end[0]);
     let left = Math.min(range.start[1], range.end[1]);
     let right = Math.max(range.start[1], range.end[1]);
+    // Header selections describe an exact worksheet axis, even across merged cells.
+    if (range.axis) {
+      return { top, bottom, left, right };
+    }
     let changed = true;
     while (changed) {
       changed = false;
@@ -140,7 +182,14 @@ export function CellGrid({ sheet, styles, selected, onSelect, onEdit, onPaste, b
       if (!onPaint) {
         cancelDrag();
         setSelection(range);
-        onSelect(address(...range.start));
+        const anchor = range.anchor ?? address(...range.start);
+        if (range.axis) {
+          preserveScroll.current = anchor !== selected;
+        }
+        onSelect(anchor);
+        if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+          event.currentTarget.releasePointerCapture(event.pointerId);
+        }
         return;
       }
       const targets: string[] = [];
@@ -206,15 +255,29 @@ export function CellGrid({ sheet, styles, selected, onSelect, onEdit, onPaste, b
         event.preventDefault();
         if (selection && onClearRange) {
           const targets: string[] = [];
-          for (let row = rangeTop; row <= rangeBottom && targets.length <= 10000; row++) {
-            for (let column = rangeLeft; column <= rangeRight && targets.length <= 10000; column++) {
-              const merge = merges.find(item => row >= item.first[0] && row <= item.last[0] && column >= item.first[1] && column <= item.last[1]);
-              if (!merge || (row === merge.first[0] && column === merge.first[1])) {
-                targets.push(address(row, column));
+          if (selection.axis) {
+            for (const cell of sheet.cells) {
+              const [row, column] = parse(cell.address);
+              if (row >= rangeTop && row <= rangeBottom && column >= rangeLeft && column <= rangeRight && (cell.value !== '' || cell.formula != null)) {
+                targets.push(cell.address);
+                if (targets.length > 10000) {
+                  break;
+                }
+              }
+            }
+          } else {
+            for (let row = rangeTop; row <= rangeBottom && targets.length <= 10000; row++) {
+              for (let column = rangeLeft; column <= rangeRight && targets.length <= 10000; column++) {
+                const merge = merges.find(item => row >= item.first[0] && row <= item.last[0] && column >= item.first[1] && column <= item.last[1]);
+                if (!merge || (row === merge.first[0] && column === merge.first[1])) {
+                  targets.push(address(row, column));
+                }
               }
             }
           }
-          onClearRange(targets);
+          if (targets.length > 0) {
+            onClearRange(targets);
+          }
         } else {
           onEdit('');
         }
@@ -222,9 +285,17 @@ export function CellGrid({ sheet, styles, selected, onSelect, onEdit, onPaste, b
     }}>
     <div className="grid-surface" style={{ width: x.at(-1), height: y.at(-1) }}>
       {visibleRange && <div className={onPaint ? "paint-range" : "selected-range"} aria-hidden="true" style={{ left: x[Math.max(0, rangeLeft - firstColumn)], top: y[Math.max(0, rangeTop - base - 1)], width: x[Math.min(columns.length, rangeRight - firstColumn + 1)] - x[Math.max(0, rangeLeft - firstColumn)], height: y[Math.min(count, rangeBottom - base)] - y[Math.max(0, rangeTop - base - 1)] }} />}
-      <div className="column-headings" role="row" style={{ width: x.at(-1) }}><div className="corner" />{columns.map((column, i) => <div role="columnheader" key={column} style={{ left: x[i], width: widths[i] }}>{address(1, column).replace('1', '')}<DimensionHandle axis="column" label={address(1, column).replace('1', '')} size={sheet.columnWidths[column] ?? sheet.defaultColumnWidth ?? 8.43} disabled={busy || !!onPaint} onSave={value => onResize?.('column', address(1, column), value)} /></div>)}</div>
+      <div className="column-headings" role="row" style={{ width: x.at(-1) }}><div className="corner" />{columns.map((column, i) => <div role="columnheader" aria-selected={visibleRange?.axis === 'column' && column >= rangeLeft && column <= rangeRight} key={column} style={{ left: x[i], width: widths[i] }}><button type="button" className="header-select" onKeyDown={event => event.stopPropagation()} aria-label={'Select column ' + address(1, column).replace('1', '')} disabled={busy || !!onPaint} onPointerDown={event => startHeaderDrag(event, 'column', column)} onClick={event => {
+        if (event.detail === 0) {
+          selectHeader('column', column);
+        }
+      }}>{address(1, column).replace('1', '')}</button><DimensionHandle axis="column" label={address(1, column).replace('1', '')} size={sheet.columnWidths[column] ?? sheet.defaultColumnWidth ?? 8.43} disabled={busy || !!onPaint} onSave={value => onResize?.('column', address(1, column), value)} /></div>)}</div>
       {Array.from({ length: end - start }, (_, i) => i + start).map(index => <div key={index} role="row" aria-rowindex={base + index + 1}>
-        <div className="row-heading" role="rowheader" style={{ top: y[index], height: y[index + 1] - y[index] }}>{base + index + 1}<DimensionHandle axis="row" label={String(base + index + 1)} size={sheet.rowHeights[base + index + 1] ?? sheet.defaultRowHeight ?? 15} disabled={busy || !!onPaint} onSave={value => onResize?.('row', address(base + index + 1, 1), value)} /></div>
+        <div className="row-heading" role="rowheader" aria-selected={visibleRange?.axis === 'row' && base + index + 1 >= rangeTop && base + index + 1 <= rangeBottom} style={{ top: y[index], height: y[index + 1] - y[index] }}><button type="button" className="header-select" onKeyDown={event => event.stopPropagation()} aria-label={'Select row ' + (base + index + 1)} disabled={busy || !!onPaint} onPointerDown={event => startHeaderDrag(event, 'row', base + index + 1)} onClick={event => {
+          if (event.detail === 0) {
+            selectHeader('row', base + index + 1);
+          }
+        }}>{base + index + 1}</button><DimensionHandle axis="row" label={String(base + index + 1)} size={sheet.rowHeights[base + index + 1] ?? sheet.defaultRowHeight ?? 15} disabled={busy || !!onPaint} onSave={value => onResize?.('row', address(base + index + 1, 1), value)} /></div>
         {columns.map((column, ci) => {
           const row = base + index + 1;
           const key = address(row, column);
@@ -292,6 +363,6 @@ export function CellGrid({ sheet, styles, selected, onSelect, onEdit, onPaste, b
         offsetX={48 - columnPosition(sheet, firstColumn)} offsetY={32 - rowPosition(sheet, base + 1)}
         onSelect={() => onSelectImage?.(image.id)} onSave={bounds => onImageEdit?.(image.id, 'transform-image', bounds)} onDelete={() => onImageEdit?.(image.id, 'delete-image')} />)}
     </div>
-    {selection && !onPaint && <span className="range-selection-status" role="status">{address(rangeTop, rangeLeft)}:{address(rangeBottom, rangeRight)} - {(rangeBottom - rangeTop + 1) * (rangeRight - rangeLeft + 1)} cells{(rangeBottom - rangeTop + 1) * (rangeRight - rangeLeft + 1) > 10000 ? ' (copy/clear limit: 10,000)' : ''}</span>}
+    {selection && !onPaint && <span className="range-selection-status" role="status">{address(rangeTop, rangeLeft)}:{address(rangeBottom, rangeRight)} - {(rangeBottom - rangeTop + 1) * (rangeRight - rangeLeft + 1)} cells{(rangeBottom - rangeTop + 1) * (rangeRight - rangeLeft + 1) > 10000 ? (selection.axis ? ' (copy limit: 10,000 cells; clear limit: 10,000 populated cells)' : ' (copy/clear limit: 10,000)') : ''}</span>}
   </div>;
 }
