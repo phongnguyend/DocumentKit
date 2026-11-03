@@ -1,6 +1,6 @@
 import { StrictMode, useEffect, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
-import { ImagePlus, Paintbrush, Calculator, Download, FolderOpen, Sheet as SheetIcon, Plus, X, Save, Trash2, Pencil, ArrowUp, ArrowDown, Undo2, Redo2, Bold, Italic } from 'lucide-react';
+import { Merge, Split, ImagePlus, Paintbrush, Calculator, Download, FolderOpen, Sheet as SheetIcon, Plus, X, Save, Trash2, Pencil, ArrowUp, ArrowDown, Undo2, Redo2, Bold, Italic } from 'lucide-react';
 import { Modal } from './components/Modal';
 import { ToolbarMenu } from './components/ToolbarMenu';
 import { ImageSourceDialog } from './components/ImageSourceDialog';
@@ -23,6 +23,7 @@ function Workbook({ tab, onDirty, onBusy }: { tab: Tab & { initial: Snapshot }; 
   const [future, setFuture] = useState<Snapshot[]>([]);
   const [sheetId, setSheetId] = useState(tab.initial.info.sheets.find(sheet => !sheet.hidden)?.id ?? tab.initial.info.sheets[0].id);
   const [selected, setSelected] = useState('A1');
+  const [selectedRange, setSelectedRange] = useState('A1');
   const [go, setGo] = useState('A1');
   const [value, setValue] = useState('');
   const [type, setType] = useState('auto');
@@ -158,6 +159,16 @@ function Workbook({ tab, onDirty, onBusy }: { tab: Tab & { initial: Snapshot }; 
         setImageDialog('add');
         setPainter(null);
       }}><ImagePlus size={16} />Add image</button>
+      <button disabled={busy || !!image || !selectedRange.includes(':') || selectedRange.split(':')[0] === selectedRange.split(':')[1]} onClick={async () => {
+        if (await edit({ action: 'merge-cells', range: selectedRange })) {
+          setSelected(selectedRange.split(':')[0]);
+        }
+      }}><Merge size={16} />Merge cells</button>
+      <button disabled={busy || !!image || !sheet.merges.some(merge => {
+        const [a, b = a] = merge.split(':').map(parse);
+        const [c, d = c] = selectedRange.split(':').map(parse);
+        return a[0] <= d[0] && b[0] >= c[0] && a[1] <= d[1] && b[1] >= c[1];
+      })} onClick={() => void edit({ action: 'unmerge-cells', range: selectedRange })}><Split size={16} />Unmerge cells</button>
       <button aria-label="Format Painter" aria-pressed={!!painter} title="Format Painter: click for one cell, double-click to keep painting" disabled={busy} onClick={event => {
         if (event.detail < 2) {
           setPainter(current => current ? null : { sheetId: sheet.id, address: selected, locked: false });
@@ -205,7 +216,7 @@ function Workbook({ tab, onDirty, onBusy }: { tab: Tab & { initial: Snapshot }; 
             }
           }} /><span className="fx">fx</span><input aria-label="Formula bar" value={value} disabled={busy || !canEditValue} onChange={event => setValue(event.target.value)} /><button disabled={busy || !canEditValue} type="submit" title="Apply cell value" aria-label="Apply cell value"><Save size={16} /></button>
         </form>
-        <CellGrid onClearRange={addresses => {
+        <CellGrid onRangeChange={setSelectedRange} onClearRange={addresses => {
           if (addresses.length > 10000) {
             setError('Clear up to 10,000 cells at a time.');
             return;

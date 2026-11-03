@@ -4,7 +4,8 @@ import { columnPosition, rowPosition } from '../types';
 import { cellAppearance, displayValue, textAppearance } from '../formatting';
 import { address, cellEditValue, defaultStyle, parse, type Sheet, type Style } from '../types';
 
-export function CellGrid({ sheet, styles, selected, onSelect, onEdit, onPaste, busy, date1904, canEditValue = true, onPaint, paintSource, selectedImage, onSelectImage, onImageEdit, onClearRange }: {
+export function CellGrid({ sheet, styles, selected, onSelect, onEdit, onPaste, busy, date1904, canEditValue = true, onPaint, paintSource, selectedImage, onSelectImage, onImageEdit, onClearRange, onRangeChange }: {
+  onRangeChange?: (range: string) => void;
   onClearRange?: (addresses: string[]) => void;
   selectedImage?: string; onSelectImage?: (id: string) => void; onImageEdit?: (id: string, action: string, bounds?: object) => void;
   sheet: Sheet; styles: Style[]; selected: string; onSelect: (value: string) => void;
@@ -120,6 +121,10 @@ export function CellGrid({ sheet, styles, selected, onSelect, onEdit, onPaste, b
   }
   const visibleRange = paintRange ?? selection;
   const { top: rangeTop, bottom: rangeBottom, left: rangeLeft, right: rangeRight } = visibleRange ? boundsOf(visibleRange) : { top: 0, bottom: 0, left: 0, right: 0 };
+
+  useEffect(() => {
+    onRangeChange?.(visibleRange ? address(rangeTop, rangeLeft) + ':' + address(rangeBottom, rangeRight) : selected);
+  }, [rangeTop, rangeLeft, rangeBottom, rangeRight, selected, !!visibleRange, onRangeChange]);
 
   return <div className={'cell-grid' + (onPaint ? ' painting' : '')} ref={host} role="grid" aria-label={sheet.name + ' cells'} aria-rowcount={1048576} aria-colcount={16384} tabIndex={0}
     onPointerMove={event => updateDrag(event.clientX, event.clientY)}

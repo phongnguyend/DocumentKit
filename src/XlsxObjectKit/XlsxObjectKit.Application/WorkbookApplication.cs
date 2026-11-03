@@ -10,7 +10,7 @@ namespace XlsxObjectKit.Application;
 public sealed record XlsxEditRequest(string Action, string SheetId, IReadOnlyList<XlsxCellEdit>? Cells = null,
     XlsxFormat? Format = null, string? Name = null, int Position = 0, double RowHeight = 21, double ColumnWidth = 14,
     string? SourceSheetId = null, string? SourceAddress = null, IReadOnlyList<string>? Addresses = null, string? ImageId = null, string? ImageBase64 = null,
-    double X = 0, double Y = 0, double Width = 240, double Height = 160);
+    double X = 0, double Y = 0, double Width = 240, double Height = 160, string? Range = null);
 
 public sealed record XlsxEditResult(byte[] Bytes, IReadOnlyList<string> Warnings);
 
@@ -49,6 +49,7 @@ public static class WorkbookApplication
             "dimensions" => XlsxEditor.Dimensions(document, request.SheetId, request.Cells?.Single().Address ?? throw new ArgumentException("Choose a cell."), request.RowHeight, request.ColumnWidth),
             "add-sheet" or "rename-sheet" or "delete-sheet" or "move-sheet" => XlsxEditor.Worksheet(document, request.Action, request.SheetId, request.Name, request.Position),
             "recalculate" => document,
+            "merge-cells" or "unmerge-cells" => XlsxEditor.MergeCells(document, request.SheetId, request.Range ?? throw new ArgumentException("Select a cell range."), request.Action == "unmerge-cells"),
             "add-image" or "replace-image" or "transform-image" or "delete-image" => XlsxImageEditor.Edit(document, request.SheetId, request.Action,
                 request.ImageId, DecodeImage(request.ImageBase64), request.X, request.Y, request.Width, request.Height),
             "apply-format" => XlsxEditor.ApplyFormat(document, request.SourceSheetId ?? throw new ArgumentException("Choose a source worksheet."),
@@ -56,7 +57,7 @@ public static class WorkbookApplication
             _ => throw new ArgumentException("Unknown edit action.")
         };
         XlsxWorkbookExtractor.Extract(document);
-        if (request.Action == "apply-format" || request.Action.EndsWith("-image", StringComparison.Ordinal))
+        if (request.Action is "apply-format" or "merge-cells" or "unmerge-cells" || request.Action.EndsWith("-image", StringComparison.Ordinal))
         {
             return new(XlsxWriter.Write(document), []);
         }

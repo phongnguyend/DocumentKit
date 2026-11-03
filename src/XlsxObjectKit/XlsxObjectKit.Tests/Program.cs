@@ -144,6 +144,24 @@ var inheritedStyle = inheritedEdit.Styles[inheritedEdit.Sheets[0].Cells.Single(c
 Check(inheritedStyle.FontSize == 20 && inheritedStyle.WrapText && inheritedStyle.VerticalAlignment == "center", "Formatting edits retain inherited font size and alignment");
 checks += CalculationTests.Run();
 checks += ImageTests.Run();
+var mergeSource = XlsxEditor.SetCells(XlsxEditor.Create(), "1", [new("A1", "Title"), new("D1", "Other")]);
+var mergeResult = XlsxEditor.MergeCells(mergeSource, "1", "C2:A1");
+Check(XlsxWorkbookExtractor.Extract(mergeResult).Sheets[0].Merges.SequenceEqual(["A1:C2"]), "Merge normalizes reverse ranges");
+Check(XlsxWorkbookExtractor.Extract(mergeSource).Sheets[0].Merges.Count == 0, "Merge keeps source immutable");
+Check(XlsxWorkbookExtractor.Extract(mergeResult).Sheets[0].Cells.Single(cell => cell.Address == "A1").Value == "Title", "Merge preserves anchor value");
+Reject(() => XlsxEditor.MergeCells(mergeSource, "1", "A1:D2"));
+Reject(() => XlsxEditor.MergeCells(mergeSource, "1", "A1"));
+Reject(() => XlsxEditor.MergeCells(mergeResult, "1", "B2:D3"));
+var unmergedResult = XlsxEditor.MergeCells(mergeResult, "1", "B2", true);
+Check(XlsxWorkbookExtractor.Extract(unmergedResult).Sheets[0].Merges.Count == 0, "Unmerge accepts a cell within a merged range");
+Check(XlsxWorkbookExtractor.Extract(unmergedResult).Sheets[0].Cells.Single(cell => cell.Address == "A1").Value == "Title", "Unmerge preserves anchor value");
+using (var mergeStream = new MemoryStream(XlsxWriter.Write(mergeResult)))
+using (var mergePackage = SpreadsheetDocument.Open(mergeStream, false))
+{
+    Check(!new OpenXmlValidator().Validate(mergePackage).Any(), "Merged package validates independently");
+}
+var mergedBytes = WorkbookApplication.Edit(XlsxWriter.Write(mergeSource), new("merge-cells", "1", Range: "A1:C2"));
+Check(WorkbookApplication.Inspect(mergedBytes).Sheets[0].Merges.Single() == "A1:C2", "Application merge survives serialization");
 var paintSource = FormattingFixture.Create();
 var paintXml = paintSource.ReadXml("xl/worksheets/sheet1.xml");
 paintXml.Descendants(S + "row").Single(row => (int?)row.Attribute("r") == 5).AddFirst(new XElement(S + "c", new XAttribute("r", "A5"), new XElement(S + "f", "1+1"), new XElement(S + "v", "777")));

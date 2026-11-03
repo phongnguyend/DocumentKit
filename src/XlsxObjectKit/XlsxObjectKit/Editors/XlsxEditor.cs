@@ -41,6 +41,106 @@ public static class XlsxEditor
         }
     }
 
+    public static XlsxObjectDocument MergeCells(XlsxObjectDocument document, string sheetId, string range, bool unmerge = false)
+    {
+        ArgumentNullException.ThrowIfNull(range);
+        var ends = range.Split(':');
+        if (ends.Length is < 1 or > 2)
+        {
+            throw new ArgumentException("Use an A1:B2 range.");
+        }
+        var first = CellAddress.Parse(ends[0]);
+        var last = CellAddress.Parse(ends[^1]);
+        var top = Math.Min(first.Row, last.Row);
+        var bottom = Math.Max(first.Row, last.Row);
+        var left = Math.Min(first.Column, last.Column);
+        var right = Math.Max(first.Column, last.Column);
+        var start = CellAddress.Format(top, left);
+        var normalized = start + ":" + CellAddress.Format(bottom, right);
+        bool Intersects(string reference)
+        {
+            var parts = reference.Replace("$", "").Split(':');
+            var a = CellAddress.Parse(parts[0]);
+            var b = CellAddress.Parse(parts[^1]);
+            return a.Row <= bottom && b.Row >= top && a.Column <= right && b.Column >= left;
+        }
+        var sheet = XlsxWorkbookExtractor.Extract(document).Sheets.Single(item => item.Id == sheetId);
+        Guard(document, sheet.Part);
+        var xml = document.ReadXml(sheet.Part);
+        var merges = xml.Root!.Element(S + "mergeCells");
+        var affected = merges?.Elements(S + "mergeCell").Where(item => Intersects((string)item.Attribute("ref")!)).ToArray() ?? [];
+        if (!unmerge)
+        {
+            if (top == bottom && left == right)
+            {
+                throw new ArgumentException("Select at least two cells to merge.");
+            }
+            foreach (var item in affected)
+            {
+                var parts = ((string)item.Attribute("ref")!).Split(':');
+                var a = CellAddress.Parse(parts[0]);
+                var b = CellAddress.Parse(parts[^1]);
+                if (a.Row < top || b.Row > bottom || a.Column < left || b.Column > right)
+                {
+                    throw new ArgumentException("Select the complete existing merged range first.");
+                }
+            }
+            if (sheet.Cells.Any(cell => cell.Address != start && Intersects(cell.Address) && (cell.Value.Length > 0 || cell.Formula is not null)))
+            {
+                throw new ArgumentException("Only the top-left cell may contain a value or formula. Move other values before merging.");
+            }
+            foreach (var formula in xml.Descendants(S + "f").Where(item => item.Attribute("ref") is not null))
+            {
+                if (Intersects((string)formula.Attribute("ref")!))
+                {
+                    throw new NotSupportedException("Merging shared, array or data-table formula ranges is not supported.");
+                }
+            }
+            foreach (var table in xml.Descendants(S + "tablePart"))
+            {
+                var part = XlsxImageExtractor.Target(document, sheet.Part, (string?)table.Attribute(R + "id"));
+                if (part is not null && Intersects((string)document.ReadXml(part).Root!.Attribute("ref")!))
+                {
+                    throw new NotSupportedException("Cells inside an Excel table cannot be merged.");
+                }
+            }
+            if (merges is null)
+            {
+                merges = new XElement(S + "mergeCells");
+                var following = xml.Root.Elements().FirstOrDefault(item => new[] { "phoneticPr", "conditionalFormatting", "dataConsolidate", "dataValidations", "hyperlinks", "printOptions", "pageMargins", "pageSetup", "headerFooter", "rowBreaks", "colBreaks", "customProperties", "cellWatches", "ignoredErrors", "smartTags", "drawing", "legacyDrawing", "legacyDrawingHF", "picture", "oleObjects", "controls", "webPublishItems", "tableParts", "extLst" }.Contains(item.Name.LocalName));
+                if (following is null)
+                {
+                    xml.Root.Add(merges);
+                }
+                else
+                {
+                    following.AddBeforeSelf(merges);
+                }
+            }
+        }
+        foreach (var item in affected)
+        {
+            item.Remove();
+        }
+        if (!unmerge)
+        {
+            merges!.Add(new XElement(S + "mergeCell", new XAttribute("ref", normalized)));
+        }
+        if (merges is not null)
+        {
+            var count = merges.Elements(S + "mergeCell").Count();
+            if (count == 0)
+            {
+                merges.Remove();
+            }
+            else
+            {
+                merges.SetAttributeValue("count", count);
+            }
+        }
+        return document.WithXml(sheet.Part, xml);
+    }
+
     public static XlsxObjectDocument ApplyFormat(XlsxObjectDocument document, string sourceSheetId, string sourceAddress, string targetSheetId, IReadOnlyList<string> addresses)
     {
         ArgumentNullException.ThrowIfNull(addresses);

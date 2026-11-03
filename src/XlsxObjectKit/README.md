@@ -56,6 +56,11 @@ It supports a documented formula subset, rather than full Excel compatibility.
   each application is one undoable edit. Keyboard users can navigate to a destination
   with arrow keys and press Enter. Drag across destination cells to paint a rectangular range (up to 10,000 cells) in one undoable edit. Escape cancels a pending drag. Merged cells retain their existing structure; only their anchor cells are painted.
 - Add, rename, delete and reorder worksheets from the Worksheet menu.
+- Select a rectangle and choose **Merge cells**. The top-left value and cell styles
+  are preserved; merging rejects other populated cells rather than silently dropping
+  their data. Select a merged cell or range and choose **Unmerge cells** to separate
+  all intersecting merged areas. Both actions support undo/redo and keep formula caches.
+  Partial overlaps, Excel table cells and shared/array formula ranges cannot be merged.
 - **Add image** opens the same upload, hand-drawing and QR-code picker used by
   the other ObjectKit playgrounds. The selected cell determines its initial position.
   Use the original image dimensions or enter placement and size in pixels.
@@ -131,6 +136,8 @@ Edit actions are `cells`, `dimensions`, `add-sheet`, `rename-sheet`,
 Worksheet positions are zero-based. Sheet IDs are stable workbook IDs, not positions.
 `apply-format` takes `sourceSheetId`, `sourceAddress`, the destination `sheetId`, and
 an `addresses` array (up to 10,000 cells). The core API is `XlsxEditor.ApplyFormat`.
+`merge-cells` and `unmerge-cells` take `sheetId` and an A1-style `range` such as
+`A1:C2`. The core API is `XlsxEditor.MergeCells(document, sheetId, range, unmerge)`.
 
 Image actions are `add-image`, `replace-image`, `transform-image` and `delete-image`.
 They take `sheetId`, `imageId` (except insertion), `imageBase64` (insertion/replacement),
