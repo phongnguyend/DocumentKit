@@ -5,9 +5,10 @@ import { columnPosition, rowPosition } from '../types';
 import { cellAppearance, displayValue, textAppearance } from '../formatting';
 import { address, cellEditValue, defaultStyle, parse, type Sheet, type Style } from '../types';
 
-export function CellGrid({ sheet, styles, selected, onSelect, onEdit, onPaste, busy, date1904, canEditValue = true, onPaint, paintSource, selectedImage, onSelectImage, onImageEdit, onClearRange, onRangeChange, onResize }: {
+export function CellGrid({ sheet, styles, selected, onSelect, onEdit, onPaste, busy, date1904, canEditValue = true, onPaint, paintSource, selectedImage, onSelectImage, onImageEdit, onClearRange, onRangeChange, onSelectionAxisChange, onResize }: {
   onResize?: (axis: 'row' | 'column', cell: string, size: number) => void;
   onRangeChange?: (range: string) => void;
+  onSelectionAxisChange?: (axis: 'row' | 'column' | null) => void;
   onClearRange?: (addresses: string[]) => void;
   selectedImage?: string; onSelectImage?: (id: string) => void; onImageEdit?: (id: string, action: string, bounds?: object) => void;
   sheet: Sheet; styles: Style[]; selected: string; onSelect: (value: string) => void;
@@ -29,13 +30,15 @@ export function CellGrid({ sheet, styles, selected, onSelect, onEdit, onPaste, b
   const columns = Array.from({ length: Math.min(26, 16385 - firstColumn) }, (_, i) => firstColumn + i);
   const count = Math.min(10000, 1048576 - base);
   const cells = useMemo(() => new Map(sheet.cells.map(cell => [cell.address, cell])), [sheet]);
-  const widths = columns.map(column => Math.max(1, Math.min(255, sheet.columnWidths[column] ?? sheet.defaultColumnWidth ?? 8.43)) * 7 + 5);
+  const hiddenRows = useMemo(() => new Set(sheet.hiddenRows ?? []), [sheet]);
+  const hiddenColumns = useMemo(() => new Set(sheet.hiddenColumns ?? []), [sheet]);
+  const widths = columns.map(column => hiddenColumns.has(column) ? 0 : Math.max(1, Math.min(255, sheet.columnWidths[column] ?? sheet.defaultColumnWidth ?? 8.43)) * 7 + 5);
   const x = [48];
   widths.forEach(width => x.push(x[x.length - 1] + width));
   const y = useMemo(() => {
     const offsets = [32];
     for (let i = 1; i <= count; i++) {
-      offsets.push(offsets[i - 1] + Math.max(1, Math.min(409, sheet.rowHeights[base + i] ?? sheet.defaultRowHeight ?? 15)) * 4 / 3);
+      offsets.push(offsets[i - 1] + (hiddenRows.has(base + i) ? 0 : Math.max(1, Math.min(409, sheet.rowHeights[base + i] ?? sheet.defaultRowHeight ?? 15)) * 4 / 3));
     }
     return offsets;
   }, [sheet, base, count]);
@@ -170,6 +173,10 @@ export function CellGrid({ sheet, styles, selected, onSelect, onEdit, onPaste, b
     onRangeChange?.(visibleRange ? address(rangeTop, rangeLeft) + ':' + address(rangeBottom, rangeRight) : selected);
   }, [rangeTop, rangeLeft, rangeBottom, rangeRight, selected, !!visibleRange, onRangeChange]);
 
+  useEffect(() => {
+    onSelectionAxisChange?.(visibleRange?.axis ?? null);
+  }, [visibleRange?.axis, onSelectionAxisChange]);
+
   return <div className={'cell-grid' + (onPaint ? ' painting' : '')} ref={host} role="grid" aria-label={sheet.name + ' cells'} aria-rowcount={1048576} aria-colcount={16384} tabIndex={0}
     onPointerMove={event => updateDrag(event.clientX, event.clientY)}
     onPointerCancel={cancelDrag} onLostPointerCapture={cancelDrag}
@@ -243,7 +250,17 @@ export function CellGrid({ sheet, styles, selected, onSelect, onEdit, onPaste, b
       if (delta) {
         setSelection(null);
         event.preventDefault();
-        onSelect(address(Math.max(1, Math.min(1048576, selectedRow + delta[0])), Math.max(1, Math.min(16384, selectedColumn + delta[1]))));
+        let nextRow = selectedRow + delta[0];
+        let nextColumn = selectedColumn + delta[1];
+        while (delta[0] && hiddenRows.has(nextRow) && nextRow >= 1 && nextRow <= 1048576) {
+          nextRow += delta[0];
+        }
+        while (delta[1] && hiddenColumns.has(nextColumn) && nextColumn >= 1 && nextColumn <= 16384) {
+          nextColumn += delta[1];
+        }
+        if (nextRow >= 1 && nextRow <= 1048576 && nextColumn >= 1 && nextColumn <= 16384) {
+          onSelect(address(nextRow, nextColumn));
+        }
       } else if (onPaint && event.key === 'Enter') {
         event.preventDefault();
         onPaint([selected]);
@@ -285,23 +302,37 @@ export function CellGrid({ sheet, styles, selected, onSelect, onEdit, onPaste, b
     }}>
     <div className="grid-surface" style={{ width: x.at(-1), height: y.at(-1) }}>
       {visibleRange && <div className={onPaint ? "paint-range" : "selected-range"} aria-hidden="true" style={{ left: x[Math.max(0, rangeLeft - firstColumn)], top: y[Math.max(0, rangeTop - base - 1)], width: x[Math.min(columns.length, rangeRight - firstColumn + 1)] - x[Math.max(0, rangeLeft - firstColumn)], height: y[Math.min(count, rangeBottom - base)] - y[Math.max(0, rangeTop - base - 1)] }} />}
-      <div className="column-headings" role="row" style={{ width: x.at(-1) }}><div className="corner" />{columns.map((column, i) => <div role="columnheader" aria-selected={visibleRange?.axis === 'column' && column >= rangeLeft && column <= rangeRight} key={column} style={{ left: x[i], width: widths[i] }}><button type="button" className="header-select" onKeyDown={event => event.stopPropagation()} aria-label={'Select column ' + address(1, column).replace('1', '')} disabled={busy || !!onPaint} onPointerDown={event => startHeaderDrag(event, 'column', column)} onClick={event => {
+      <div className="column-headings" role="row" style={{ width: x.at(-1) }}><div className="corner" />{columns.map((column, i) => hiddenColumns.has(column) ? null : <div role="columnheader" aria-selected={visibleRange?.axis === 'column' && column >= rangeLeft && column <= rangeRight} key={column} style={{ left: x[i], width: widths[i] }}><button type="button" className="header-select" onKeyDown={event => event.stopPropagation()} aria-label={'Select column ' + address(1, column).replace('1', '')} disabled={busy || !!onPaint} onPointerDown={event => startHeaderDrag(event, 'column', column)} onClick={event => {
         if (event.detail === 0) {
           selectHeader('column', column);
         }
       }}>{address(1, column).replace('1', '')}</button><DimensionHandle axis="column" label={address(1, column).replace('1', '')} size={sheet.columnWidths[column] ?? sheet.defaultColumnWidth ?? 8.43} disabled={busy || !!onPaint} onSave={value => onResize?.('column', address(1, column), value)} /></div>)}</div>
-      {Array.from({ length: end - start }, (_, i) => i + start).map(index => <div key={index} role="row" aria-rowindex={base + index + 1}>
+      {Array.from({ length: end - start }, (_, i) => i + start).filter(index => !hiddenRows.has(base + index + 1)).map(index => <div key={index} role="row" aria-rowindex={base + index + 1}>
         <div className="row-heading" role="rowheader" aria-selected={visibleRange?.axis === 'row' && base + index + 1 >= rangeTop && base + index + 1 <= rangeBottom} style={{ top: y[index], height: y[index + 1] - y[index] }}><button type="button" className="header-select" onKeyDown={event => event.stopPropagation()} aria-label={'Select row ' + (base + index + 1)} disabled={busy || !!onPaint} onPointerDown={event => startHeaderDrag(event, 'row', base + index + 1)} onClick={event => {
           if (event.detail === 0) {
             selectHeader('row', base + index + 1);
           }
         }}>{base + index + 1}</button><DimensionHandle axis="row" label={String(base + index + 1)} size={sheet.rowHeights[base + index + 1] ?? sheet.defaultRowHeight ?? 15} disabled={busy || !!onPaint} onSave={value => onResize?.('row', address(base + index + 1, 1), value)} /></div>
         {columns.map((column, ci) => {
-          const row = base + index + 1;
-          const key = address(row, column);
-          const merge = merges.find(item => row >= item.first[0] && row <= item.last[0] && column >= item.first[1] && column <= item.last[1]);
-          if (merge && (row !== merge.first[0] || column !== merge.first[1])) {
+          if (hiddenColumns.has(column)) {
             return null;
+          }
+          const row = base + index + 1;
+          let key = address(row, column);
+          const merge = merges.find(item => row >= item.first[0] && row <= item.last[0] && column >= item.first[1] && column <= item.last[1]);
+          if (merge) {
+            let firstRow = merge.first[0];
+            let firstCol = merge.first[1];
+            while (hiddenRows.has(firstRow) && firstRow <= merge.last[0]) {
+              firstRow++;
+            }
+            while (hiddenColumns.has(firstCol) && firstCol <= merge.last[1]) {
+              firstCol++;
+            }
+            if (row !== firstRow || column !== firstCol) {
+              return null;
+            }
+            key = address(...merge.first);
           }
           const cell = cells.get(key);
           const style = styles[cell?.style ?? sheet.rowStyles?.[row] ?? sheet.columnStyles?.[column] ?? 0] ?? defaultStyle;
@@ -314,7 +345,7 @@ export function CellGrid({ sheet, styles, selected, onSelect, onEdit, onPaste, b
               if (!busy && event.button === 0 && !(event.target instanceof HTMLInputElement)) {
                 event.preventDefault();
                 suppressClick.current = true;
-                drag.current = { start: [row, column], end: [row, column] };
+                drag.current = { start: parse(key), end: [row, column] };
                 setPaintRange(drag.current);
                 host.current?.focus();
                 if (onPaint) {

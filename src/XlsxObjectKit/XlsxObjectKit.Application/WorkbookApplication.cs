@@ -52,6 +52,8 @@ public static class WorkbookApplication
             "dimensions" => XlsxEditor.Dimensions(document, request.SheetId, request.Cells?.Single().Address ?? throw new ArgumentException("Choose a cell."), request.RowHeight, request.ColumnWidth),
             "add-sheet" or "rename-sheet" or "delete-sheet" or "move-sheet" => XlsxEditor.Worksheet(document, request.Action, request.SheetId, request.Name, request.Position),
             "recalculate" => document,
+            "hide-rows" or "hide-columns" or "unhide-rows" or "unhide-columns" => XlsxVisibilityEditor.SetHidden(document, request.SheetId,
+                request.Action.EndsWith("rows", StringComparison.Ordinal), request.Position, request.Count, request.Action.StartsWith("hide-", StringComparison.Ordinal)),
             "insert-rows" or "insert-columns" => XlsxStructureEditor.Insert(document, request.SheetId, request.Action == "insert-rows", request.Position, request.Count),
             "delete-rows" or "delete-columns" => XlsxStructureEditor.Delete(document, request.SheetId, request.Action == "delete-rows", request.Position, request.Count),
             "merge-cells" or "unmerge-cells" => XlsxEditor.MergeCells(document, request.SheetId, request.Range ?? throw new ArgumentException("Select a cell range."), request.Action == "unmerge-cells"),
@@ -62,7 +64,8 @@ public static class WorkbookApplication
             _ => throw new ArgumentException("Unknown edit action.")
         };
         XlsxWorkbookExtractor.Extract(document);
-        if (request.Action is "apply-format" or "resize-row" or "resize-column" or "merge-cells" or "unmerge-cells" || request.Action.EndsWith("-image", StringComparison.Ordinal))
+        if (request.Action is "apply-format" or "resize-row" or "resize-column" or "merge-cells" or "unmerge-cells" || request.Action.EndsWith("-image", StringComparison.Ordinal)
+            || request.Action.StartsWith("hide-", StringComparison.Ordinal) || request.Action.StartsWith("unhide-", StringComparison.Ordinal))
         {
             return new(XlsxWriter.Write(document), []);
         }

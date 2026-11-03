@@ -22,9 +22,11 @@ public static class XlsxImageExtractor
     }
 
     public static double ColumnPosition(XlsxSheet sheet, int column) => (column - 1) * (sheet.DefaultColumnWidth * 7 + 5)
+        - sheet.HiddenColumns.Where(index => index < column).Sum(index => sheet.ColumnWidths.GetValueOrDefault(index, sheet.DefaultColumnWidth) * 7 + 5)
         + sheet.ColumnWidths.Where(item => item.Key < column).Sum(item => (item.Value - sheet.DefaultColumnWidth) * 7);
 
     public static double RowPosition(XlsxSheet sheet, int row) => ((row - 1) * sheet.DefaultRowHeight
+        - sheet.HiddenRows.Where(index => index < row).Sum(index => sheet.RowHeights.GetValueOrDefault(index, sheet.DefaultRowHeight))
         + sheet.RowHeights.Where(item => item.Key < row).Sum(item => item.Value - sheet.DefaultRowHeight)) * 4 / 3;
 
     public static IReadOnlyList<XlsxImage> Extract(XlsxObjectDocument document, XlsxSheet sheet)

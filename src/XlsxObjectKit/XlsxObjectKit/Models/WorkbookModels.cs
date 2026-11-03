@@ -37,6 +37,10 @@ public sealed record XlsxStyle(bool Bold, bool Italic, string Color, string Back
 public sealed record XlsxSheet(string Id, string Name, string Part, bool Hidden, IReadOnlyList<XlsxCell> Cells,
     IReadOnlyList<string> Merges, IReadOnlyDictionary<int, double> RowHeights, IReadOnlyDictionary<int, double> ColumnWidths)
 {
+    public IReadOnlyList<int> HiddenRows { get; init; } = [];
+
+    public IReadOnlyList<int> HiddenColumns { get; init; } = [];
+
     public IReadOnlyDictionary<int, int> RowStyles { get; init; } = new Dictionary<int, int>();
 
     public IReadOnlyDictionary<int, int> ColumnStyles { get; init; } = new Dictionary<int, int>();

@@ -64,12 +64,20 @@ public static class XlsxWorkbookExtractor
             var heights = xml.Descendants(S + "row").Where(row => row.Attribute("ht") is not null)
                 .ToDictionary(row => (int)row.Attribute("r")!, row => Number(row, "ht", 20));
             var widths = new Dictionary<int, double>();
+            var hiddenColumns = new HashSet<int>();
             var columnStyles = new Dictionary<int, int>();
             foreach (var col in xml.Descendants(S + "cols").Elements(S + "col"))
             {
                 for (var i = Math.Max(1, (int?)col.Attribute("min") ?? 1); i <= Math.Min(16384, (int?)col.Attribute("max") ?? 1); i++)
                 {
-                    widths[i] = Number(col, "width", 8.43);
+                    if (col.Attribute("width") is not null)
+                    {
+                        widths[i] = Number(col, "width", 8.43);
+                    }
+                    if ((bool?)col.Attribute("hidden") == true)
+                    {
+                        hiddenColumns.Add(i);
+                    }
                     if (col.Attribute("style") is not null)
                     {
                         columnStyles[i] = (int)col.Attribute("style")!;
@@ -83,6 +91,8 @@ public static class XlsxWorkbookExtractor
                 RowStyles = xml.Descendants(S + "row").Where(row => row.Attribute("s") is not null && (string?)row.Attribute("customFormat") is "1" or "true")
                     .ToDictionary(row => (int)row.Attribute("r")!, row => (int)row.Attribute("s")!),
                 ColumnStyles = columnStyles,
+                HiddenRows = xml.Descendants(S + "row").Where(r => (bool?)r.Attribute("hidden") == true).Select(r => (int)r.Attribute("r")!).ToArray(),
+                HiddenColumns = hiddenColumns.Order().ToArray(),
                 DefaultRowHeight = Number(xml.Root.Element(S + "sheetFormatPr") ?? new XElement("empty"), "defaultRowHeight", 15),
                 DefaultColumnWidth = Number(xml.Root.Element(S + "sheetFormatPr") ?? new XElement("empty"), "defaultColWidth", 8.43)
             });

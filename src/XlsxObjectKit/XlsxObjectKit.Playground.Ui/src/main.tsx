@@ -24,6 +24,7 @@ function Workbook({ tab, onDirty, onBusy }: { tab: Tab & { initial: Snapshot }; 
   const [sheetId, setSheetId] = useState(tab.initial.info.sheets.find(sheet => !sheet.hidden)?.id ?? tab.initial.info.sheets[0].id);
   const [selected, setSelected] = useState('A1');
   const [selectedRange, setSelectedRange] = useState('A1');
+  const [selectionAxis, setSelectionAxis] = useState<'row' | 'column' | null>(null);
   const [go, setGo] = useState('A1');
   const [value, setValue] = useState('');
   const [type, setType] = useState('auto');
@@ -100,6 +101,14 @@ function Workbook({ tab, onDirty, onBusy }: { tab: Tab & { initial: Snapshot }; 
     if (await edit({ action: rows ? 'delete-rows' : 'delete-columns', position, count })) {
       setSelected(address(rows ? position : row, rows ? column : position));
     }
+  }
+
+  async function visibility(rows: boolean, hidden: boolean, all = false) {
+    const [first, last = first] = selectedRange.split(':').map(parse);
+    const axis = rows ? 0 : 1;
+    const position = all ? 1 : Math.min(first[axis], last[axis]);
+    const count = all ? (rows ? 1048576 : 16384) : Math.abs(last[axis] - first[axis]) + 1;
+    await edit({ action: (hidden ? 'hide-' : 'unhide-') + (rows ? 'rows' : 'columns'), position, count });
   }
 
   async function edit(request: object) {
@@ -205,6 +214,14 @@ function Workbook({ tab, onDirty, onBusy }: { tab: Tab & { initial: Snapshot }; 
         <button className="danger" disabled={busy || !!image || Math.abs(parse(selectedRange.split(':').at(-1)!)[0] - parse(selectedRange.split(':')[0])[0]) >= 10000} onClick={() => void deleteCells(true)}><Trash2 size={16} />Delete selected rows</button>
         <button className="danger" disabled={busy || !!image || Math.abs(parse(selectedRange.split(':').at(-1)!)[1] - parse(selectedRange.split(':')[0])[1]) >= 10000} onClick={() => void deleteCells(false)}><Trash2 size={16} />Delete selected columns</button>
       </ToolbarMenu>
+      <ToolbarMenu label="Visibility" icon={SheetIcon} disabled={busy || !((selectionAxis && !image) || sheet.hiddenRows?.length || sheet.hiddenColumns?.length)}>
+        {selectionAxis === 'row' && !image && <button disabled={busy} onClick={() => void visibility(true, true)}>Hide selected rows</button>}
+        {selectionAxis === 'column' && !image && <button disabled={busy} onClick={() => void visibility(false, true)}>Hide selected columns</button>}
+        {selectionAxis === 'row' && !image && <button disabled={busy} onClick={() => void visibility(true, false)}>Unhide selected rows</button>}
+        {selectionAxis === 'column' && !image && <button disabled={busy} onClick={() => void visibility(false, false)}>Unhide selected columns</button>}
+        {!!sheet.hiddenRows?.length && <button disabled={busy} onClick={() => void visibility(true, false, true)}>Unhide all rows</button>}
+        {!!sheet.hiddenColumns?.length && <button disabled={busy} onClick={() => void visibility(false, false, true)}>Unhide all columns</button>}
+      </ToolbarMenu>
       <ToolbarMenu label="Worksheet" icon={SheetIcon}>
         <button disabled={busy} onClick={() => openSheetDialog('add-sheet')}><Plus size={16} />Add worksheet</button>
         <button disabled={busy} onClick={() => openSheetDialog('rename-sheet')}><Pencil size={16} />Rename worksheet</button>
@@ -246,7 +263,7 @@ function Workbook({ tab, onDirty, onBusy }: { tab: Tab & { initial: Snapshot }; 
             }
           }} /><span className="fx">fx</span><input aria-label="Formula bar" value={value} disabled={busy || !canEditValue} onChange={event => setValue(event.target.value)} /><button disabled={busy || !canEditValue} type="submit" title="Apply cell value" aria-label="Apply cell value"><Save size={16} /></button>
         </form>
-        <CellGrid onResize={(axis, address, size) => void edit({ action: 'resize-' + axis, cells: [{ address, value: '' }], ...(axis === 'row' ? { rowHeight: size } : { columnWidth: size }) })} onRangeChange={setSelectedRange} onClearRange={addresses => {
+        <CellGrid onResize={(axis, address, size) => void edit({ action: 'resize-' + axis, cells: [{ address, value: '' }], ...(axis === 'row' ? { rowHeight: size } : { columnWidth: size }) })} onRangeChange={setSelectedRange} onSelectionAxisChange={setSelectionAxis} onClearRange={addresses => {
           if (addresses.length > 10000) {
             setError('Clear up to 10,000 cells at a time.');
             return;

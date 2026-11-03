@@ -6,7 +6,7 @@ export type Style = {
   borders?: Record<string, { style: string; color: string }>;
 };
 export type SheetImage = { id: string; name: string; dataUrl: string; x: number; y: number; width: number; height: number; editable: boolean };
-export type Sheet = { images?: SheetImage[]; id: string; name: string; hidden: boolean; cells: Cell[]; merges: string[]; rowHeights: Record<number, number>; columnWidths: Record<number, number>; rowStyles?: Record<number, number>; columnStyles?: Record<number, number>; defaultRowHeight?: number; defaultColumnWidth?: number };
+export type Sheet = { hiddenRows?: number[]; hiddenColumns?: number[]; images?: SheetImage[]; id: string; name: string; hidden: boolean; cells: Cell[]; merges: string[]; rowHeights: Record<number, number>; columnWidths: Record<number, number>; rowStyles?: Record<number, number>; columnStyles?: Record<number, number>; defaultRowHeight?: number; defaultColumnWidth?: number };
 export type Inspection = { sheets: Sheet[]; styles: Style[]; warnings: string[]; date1904?: boolean };
 export type Snapshot = { bytes: Blob; info: Inspection };
 export const defaultStyle: Style = { bold: false, italic: false, color: '#24334a', background: '#ffffff', alignment: 'left' };
@@ -69,9 +69,9 @@ export async function inspect(bytes: Blob): Promise<Snapshot> {
 
 export function columnPosition(sheet: Sheet, column: number) {
   const width = sheet.defaultColumnWidth ?? 8.43;
-  return (column - 1) * (width * 7 + 5) + Object.entries(sheet.columnWidths).filter(([key]) => +key < column).reduce((sum, [, value]) => sum + (value - width) * 7, 0);
+  return -(sheet.hiddenColumns ?? []).filter(index => index < column).reduce((sum, index) => sum + ((sheet.columnWidths[index] ?? width) * 7 + 5), 0) + (column - 1) * (width * 7 + 5) + Object.entries(sheet.columnWidths).filter(([key]) => +key < column).reduce((sum, [, value]) => sum + (value - width) * 7, 0);
 }
 export function rowPosition(sheet: Sheet, row: number) {
   const height = sheet.defaultRowHeight ?? 15;
-  return ((row - 1) * height + Object.entries(sheet.rowHeights).filter(([key]) => +key < row).reduce((sum, [, value]) => sum + value - height, 0)) * 4 / 3;
+  return (-(sheet.hiddenRows ?? []).filter(index => index < row).reduce((sum, index) => sum + (sheet.rowHeights[index] ?? height), 0) + (row - 1) * height + Object.entries(sheet.rowHeights).filter(([key]) => +key < row).reduce((sum, [, value]) => sum + value - height, 0)) * 4 / 3;
 }

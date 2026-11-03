@@ -146,6 +146,7 @@ checks += CalculationTests.Run();
 checks += ImageTests.Run();
 checks += StructureTests.Run();
 checks += DeletionTests.Run();
+checks += VisibilityTests.Run();
 var resizedRow = XlsxEditor.Dimensions(XlsxEditor.Create(), "1", "B3", 36, 14, resizeColumn: false);
 Check(XlsxWorkbookExtractor.Extract(resizedRow).Sheets[0].RowHeights[3] == 36, "Row-only resizing saves height");
 Check(XlsxWorkbookExtractor.Extract(resizedRow).Sheets[0].ColumnWidths.Count == 0, "Row-only resizing leaves columns unchanged");

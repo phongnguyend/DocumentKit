@@ -16,3 +16,5 @@
 .toolbar .filename { max-width: 140px; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 @media (max-width: 1200px) { .toolbar .filename { display: none; } }
 @media (max-width: 600px) { .toolbar-menu-panel { left: 0; right: auto; max-width: calc(100vw - 24px); } }
+
+.toolbar-menu summary[aria-disabled="true"] { opacity: .5; cursor: default; background: transparent; color: inherit; border-color: #d7deea; }

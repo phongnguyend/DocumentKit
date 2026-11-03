@@ -290,3 +290,25 @@ workbook restrictions listed for insertion apply to deletion.
 Core API: `XlsxStructureEditor.Delete(document, sheetId, rows: true, position: 2,
 count: 1)`. Shared application/API/CLI actions: `delete-rows` and `delete-columns`,
 with a one-based `position` and optional `count` (default 1).
+
+### Hide and unhide rows or columns
+
+Use **Visibility > Hide selected rows/columns** after selecting cells or headers.
+Row-header selections show only row visibility actions; column-header selections
+show only column visibility actions. Selection-specific actions require entire rows or columns selected using their
+headers. The Visibility menu stays visible and is disabled when no actions apply,
+keeping the toolbar stable during selection. Unhide all rows/columns remains available whenever hidden rows/columns
+exist, regardless of the current selection.
+Hidden rows/columns collapse in the grid while retaining their values, formulas,
+formatting, and original sizes. Arrow navigation skips hidden headers. Changes
+are saved in the XLSX and support undo/redo.
+
+Use **Unhide selected rows/columns** on a range spanning hidden headers, or use
+**Unhide all rows/columns** to restore visibility throughout the worksheet.
+Cell-anchored images follow collapsed dimensions; absolute images remain fixed.
+
+Core API: `XlsxVisibilityEditor.SetHidden(document, sheetId, rows: true,
+position: 2, count: 3, hidden: true)`. Shared API/CLI actions are `hide-rows`,
+`hide-columns`, `unhide-rows`, and `unhide-columns`, with one-based `position`
+and `count`. Hide is limited to 10,000 rows/columns per action; unhide supports
+the full worksheet. Signed/protected sheets cannot be modified.

@@ -18,7 +18,10 @@ test('delete selected rows and columns shifts data, recalculates and supports un
     const a = await page.getByRole('button', { name: `Select ${axis} ${first}`, exact: true }).boundingBox();
     const b = await page.getByRole('button', { name: `Select ${axis} ${last}`, exact: true }).boundingBox();
     await page.mouse.move(a.x + a.width / 2, a.y + a.height / 2);
+    const before = await page.getByRole('grid').boundingBox();
     await page.mouse.down();
+    // Selection-specific tools must not move the grid under the pointer.
+    await expect.poll(async () => (await page.getByRole('grid').boundingBox()).y).toBe(before.y);
     await page.mouse.move(b.x + b.width / 2, b.y + b.height / 2, { steps: 4 });
     await page.mouse.up();
   }
@@ -27,7 +30,9 @@ test('delete selected rows and columns shifts data, recalculates and supports un
     await page.getByRole('button', { name: `Delete selected ${axis}`, exact: true }).click();
   }
   await selectHeaders('row', 2, 3);
+  await expect(page.locator('.range-selection-status')).toContainText('A2:XFD3');
   await remove('rows');
+  await expect(cell('A1')).toHaveText('1');
   await expect(cell('A2')).toHaveText('4');
   await expect(cell('B2')).toHaveText('1');
   await expect(cell('D2')).toHaveText('Keep');
