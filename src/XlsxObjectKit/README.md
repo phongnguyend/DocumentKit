@@ -33,6 +33,13 @@ It supports a documented formula subset, rather than full Excel compatibility.
   Existing cells select their stored value type automatically (formula cells stay
   Formula regardless of their calculated result). Blank cells use Automatic.
   Editing preserves the selected type; choose another type to convert a value.
+- Unwrapped text spills into empty neighboring cells, following left, right or
+  center alignment. Values, formulas, merged regions and the active cell editor
+  stop overflow. Wrapped/rotated text, merged cells and numbers remain clipped
+  to their own bounds. Overflow does not change cell selection or saved values.
+  Right-aligned text extends left. Imported cell reading order is respected;
+  contextual Arabic/Hebrew text uses RTL direction, while explicit alignment
+  remains independent of reading order.
 - Edits recalculate supported formulas and their dependencies automatically.
   **Recalculate** refreshes cached results in uploaded workbooks. Formula expressions
   remain editable and calculated values are saved in the downloaded XLSX.
@@ -82,9 +89,11 @@ It supports a documented formula subset, rather than full Excel compatibility.
 - Download the edited XLSX. Undo/redo retains up to 20 snapshots, with a 100 MB
   history budget excluding the current snapshot (one prior snapshot is retained).
 
-The grid opens a window of 10,000 rows and 26 columns. Use **Go to cell** to jump
-to another window, including distant addresses such as `AA10001`. Only visible
-rows are rendered. Merged ranges show their top-left cell; edit that anchor.
+The grid opens a window of 10,000 rows. Horizontal scrolling reaches the last
+column containing data, a merged range or an image, with A?Z as the minimum.
+**Go to cell** can temporarily extend that area up to XFD and jump to another row
+window, including addresses such as `AA10001`. Only nearby rows and columns are
+rendered. Merged ranges show their top-left cell; edit that anchor.
 
 ## Run locally
 
@@ -148,6 +157,15 @@ They take `sheetId`, `imageId` (except insertion), `imageBase64` (insertion/repl
 and `x`, `y`, `width`, `height` in pixels (insertion/transform). PNG/JPEG inputs are
 limited to 5 MB. The core API is `XlsxImageEditor.Edit`; inspection exposes `Images`
 on each worksheet. The UI normalizes other browser-decodable raster formats to PNG.
+
+## Worksheet colors
+
+Worksheet colors are available from **Worksheet > Worksheet color**. Choose a
+preset or custom color, or **No color** to clear it. The worksheet list shows a
+color stripe while keeping the selected sheet distinct. Colors support undo/redo
+and are saved in downloaded workbooks. Existing RGB, theme/tint and indexed tab
+colors are displayed. API/CLI: `set-sheet-color` with `sheetId` and `tabColor`
+(`#RRGGBB`, or `null` to clear); core API: `XlsxEditor.SetSheetColor`.
 
 ## Native formula calculation
 
@@ -216,7 +234,7 @@ runs browser tests, and builds the Compose images.
 - Formula support is limited to the subset above. Named ranges, structured table
   references, whole-row/column ranges, lookups, date/time functions, external links,
   dynamic arrays and iterative calculation are not implemented. Workbooks containing
-  shared/array/data-table formulas are not recalculated by this engine yet; their
+  array/data-table formulas are not recalculated by this engine yet; their
   formula caches are cleared with a diagnostic. ISO date cells are unsupported as
   calculation inputs (numeric Excel date serials can participate in arithmetic).
 - Rename/delete is rejected when formulas or named ranges exist, since their
@@ -312,3 +330,44 @@ position: 2, count: 3, hidden: true)`. Shared API/CLI actions are `hide-rows`,
 `hide-columns`, `unhide-rows`, and `unhide-columns`, with one-based `position`
 and `count`. Hide is limited to 10,000 rows/columns per action; unhide supports
 the full worksheet. Signed/protected sheets cannot be modified.
+
+### Conditional formatting
+
+Select cells or headers and choose **Conditional formatting**. Add numeric
+comparisons (greater/less than, inclusive comparisons, equal/not equal, and
+between/not between), set text/fill colors, and enter an A1 range. Changes save
+immediately, support undo/redo, and remain native conditional-formatting rules
+when downloaded. The dialog lists worksheet rules in priority order and lets you
+remove rules; replace a rule by removing it and adding its replacement.
+
+The grid evaluates supported `cellIs` rules with literal bounds or same-sheet
+A1-reference arithmetic, including percentage thresholds. Differential font and
+solid-fill colors support RGB, theme/tint and indexed colors; imported differential
+background-color fills are supported too. Rules use cached numeric formula results and
+refresh when values recalculate. Blanks, text, booleans and errors are not treated
+as numbers. Earlier rules win for conflicting properties; stop-if-true is honored
+for supported rules. Base cell formatting is preserved.
+
+Simple imported expression rules support relative A1 references, text/numeric comparisons,
+and `AND`, `OR`, `NOT`, including differential bold/italic. These rules use cached
+values of stored cells and refresh after recalculation; blank unstored cells are
+not evaluated. Expression rules are not authored in the dialog yet.
+
+Other formula-based conditions, text/date rule types, duplicate-value rules, color scales,
+data bars, icon sets and other differential
+styles are preserved but not previewed or authored yet. Unsupported imported
+rules are labelled in the dialog; mixed supported/unsupported rules can display
+differently from Excel. Selection formatting and format painter continue to copy
+base styles rather than conditional rules.
+
+Shared API/CLI actions: `add-conditional-rule` (`range`, `operator`, `value`,
+optional `secondValue`, `color`, `background`) and `remove-conditional-rule`
+(`ruleId` from inspection). Core API: `XlsxConditionalFormatEditor.Edit`.
+
+### Shared formulas and weekday text
+
+Inspection expands shared formula followers into their effective A1 formulas.
+Application edits and recalculation normalize shared groups into individual formulas
+so chained dependencies recalculate and remain editable. The calculation engine
+supports `TEXT(serial, "dddd")` and `TEXT(serial, "ddd")` for English weekday names
+in both workbook date systems. Other `TEXT` formats remain unsupported.

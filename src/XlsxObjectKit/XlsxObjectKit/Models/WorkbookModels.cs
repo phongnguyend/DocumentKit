@@ -31,12 +31,18 @@ public sealed record XlsxStyle(bool Bold, bool Italic, string Color, string Back
 
     public int TextRotation { get; init; }
 
+    public int ReadingOrder { get; init; }
+
     public IReadOnlyDictionary<string, XlsxBorder> Borders { get; init; } = new Dictionary<string, XlsxBorder>();
 }
 
 public sealed record XlsxSheet(string Id, string Name, string Part, bool Hidden, IReadOnlyList<XlsxCell> Cells,
     IReadOnlyList<string> Merges, IReadOnlyDictionary<int, double> RowHeights, IReadOnlyDictionary<int, double> ColumnWidths)
 {
+    public string? TabColor { get; init; }
+
+    public IReadOnlyList<XlsxObjectKit.Editors.XlsxConditionalRule> ConditionalRules { get; init; } = [];
+
     public IReadOnlyList<int> HiddenRows { get; init; } = [];
 
     public IReadOnlyList<int> HiddenColumns { get; init; } = [];

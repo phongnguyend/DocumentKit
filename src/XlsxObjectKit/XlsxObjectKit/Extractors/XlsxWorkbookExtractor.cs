@@ -19,6 +19,7 @@ public static class XlsxWorkbookExtractor
         var strings = Part("sharedStrings") is { } stringPart ? document.ReadXml(stringPart).Root!.Elements(S + "si")
             .Select(item => string.Concat(item.Descendants(S + "t").Where(text => !text.Ancestors(S + "rPh").Any()).Select(text => text.Value))).ToArray() : [];
         var styles = XlsxStyleReader.Read(document, Part("styles"), Part("theme"));
+        var color = XlsxStyleReader.ColorReader(document, Part("styles"), Part("theme"));
         var sheets = new List<XlsxSheet>();
         var total = 0;
         foreach (var sheet in workbook.Descendants(S + "sheet"))
@@ -33,6 +34,7 @@ public static class XlsxWorkbookExtractor
             {
                 throw new NotSupportedException("Only worksheets are supported; this workbook contains a chart sheet or another sheet type.");
             }
+            XlsxObjectKit.Calculation.SharedFormulas.ExpandSheet(xml);
             var cells = new List<XlsxCell>();
             foreach (var cell in xml.Descendants(S + "sheetData").Elements(S + "row").Elements(S + "c"))
             {
@@ -91,6 +93,8 @@ public static class XlsxWorkbookExtractor
                 RowStyles = xml.Descendants(S + "row").Where(row => row.Attribute("s") is not null && (string?)row.Attribute("customFormat") is "1" or "true")
                     .ToDictionary(row => (int)row.Attribute("r")!, row => (int)row.Attribute("s")!),
                 ColumnStyles = columnStyles,
+                TabColor = xml.Root.Element(S + "sheetPr")?.Element(S + "tabColor") is { } tabColor ? color(tabColor, "") is { Length: > 0 } resolvedColor ? resolvedColor : null : null,
+                ConditionalRules = XlsxObjectKit.Editors.XlsxConditionalFormatEditor.Read(document, part, cells),
                 HiddenRows = xml.Descendants(S + "row").Where(r => (bool?)r.Attribute("hidden") == true).Select(r => (int)r.Attribute("r")!).ToArray(),
                 HiddenColumns = hiddenColumns.Order().ToArray(),
                 DefaultRowHeight = Number(xml.Root.Element(S + "sheetFormatPr") ?? new XElement("empty"), "defaultRowHeight", 15),
@@ -112,7 +116,7 @@ public static class XlsxWorkbookExtractor
         }
         var pending = sheets.Sum(sheet => sheet.Cells.Count(cell => cell.Formula is not null && !cell.HasCachedValue));
         return new(sheets, styles, [$"Native calculation supports common formulas. {pending} formula(s) have no cached result. Recalculate to refresh uploaded results; unsupported formulas remain unresolved.",
-            "Charts, grouped drawings, conditional formatting, filters and advanced Excel features are preserved in the file but are not rendered. Embedded PNG/JPEG pictures are supported; cropped/rotated pictures may appear differently and cannot be moved in the playground. Pattern/gradient fills, rich-text runs and exact Excel font metrics may differ."])
+            "Charts, grouped drawings, advanced conditional formatting, filters and advanced Excel features are preserved in the file but are not rendered. Embedded PNG/JPEG pictures are supported; cropped/rotated pictures may appear differently and cannot be moved in the playground. Pattern/gradient fills, rich-text runs and exact Excel font metrics may differ."])
         {
             Date1904 = (string?)workbook.Root!.Element(S + "workbookPr")?.Attribute("date1904") is "1" or "true"
         };

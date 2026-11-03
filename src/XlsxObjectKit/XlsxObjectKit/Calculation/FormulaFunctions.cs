@@ -10,6 +10,27 @@ internal sealed partial class FormulaEngine
         var name = node.Text.StartsWith("_XLFN.", StringComparison.Ordinal) ? node.Text[6..] : node.Text;
         var count = node.Children.Count;
         FormulaValue Value(int index) => Evaluate(node.Children[index], sheet);
+        if (name == "TEXT" && count == 2)
+        {
+            var number = Value(0).AsNumber();
+            var format = Value(1);
+            if (number.Failed || format.Failed)
+            {
+                return number.Failed ? number : format;
+            }
+            if (format.Text is "dddd" or "ddd")
+            {
+                if (number.Number < 0 || number.Number > 2958465)
+                {
+                    return FormulaValue.Error("#VALUE!");
+                }
+                var days = (int)Math.Floor(number.Number);
+                var day = workbook.Date1904 ? (days + 5) % 7 : (days + (days < 60 ? 0 : 6)) % 7;
+                var culture = System.Globalization.CultureInfo.InvariantCulture.DateTimeFormat;
+                return new("str", format.Text == "dddd" ? culture.DayNames[day] : culture.AbbreviatedDayNames[day]);
+            }
+            return FormulaValue.Pending("TEXT currently supports ddd and dddd date formats.");
+        }
         if (name is "TRUE" or "FALSE")
         {
             return count == 0 ? FormulaValue.Boolean(name == "TRUE") : FormulaValue.Error("#VALUE!");

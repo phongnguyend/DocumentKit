@@ -2,11 +2,12 @@ export type Cell = { address: string; value: string; type: string; formula: stri
 export type Style = {
   bold: boolean; italic: boolean; color: string; background: string; alignment: string; numberFormat?: string;
   numberFormatId?: number; fontName?: string; fontSize?: number; underline?: string; strike?: boolean;
-  wrapText?: boolean; verticalAlignment?: string; indent?: number; textRotation?: number;
+  wrapText?: boolean; verticalAlignment?: string; indent?: number; textRotation?: number; readingOrder?: number;
   borders?: Record<string, { style: string; color: string }>;
 };
 export type SheetImage = { id: string; name: string; dataUrl: string; x: number; y: number; width: number; height: number; editable: boolean };
-export type Sheet = { hiddenRows?: number[]; hiddenColumns?: number[]; images?: SheetImage[]; id: string; name: string; hidden: boolean; cells: Cell[]; merges: string[]; rowHeights: Record<number, number>; columnWidths: Record<number, number>; rowStyles?: Record<number, number>; columnStyles?: Record<number, number>; defaultRowHeight?: number; defaultColumnWidth?: number };
+export type ConditionalRule = { bold?: boolean | null; italic?: boolean | null; matchedCells?: string[] | null; id: number; range: string; operator: string; value: number | null; secondValue: number | null; color: string | null; background: string | null; stopIfTrue: boolean; priority: number; supported: boolean };
+export type Sheet = { tabColor?: string | null; conditionalRules?: ConditionalRule[]; hiddenRows?: number[]; hiddenColumns?: number[]; images?: SheetImage[]; id: string; name: string; hidden: boolean; cells: Cell[]; merges: string[]; rowHeights: Record<number, number>; columnWidths: Record<number, number>; rowStyles?: Record<number, number>; columnStyles?: Record<number, number>; defaultRowHeight?: number; defaultColumnWidth?: number };
 export type Inspection = { sheets: Sheet[]; styles: Style[]; warnings: string[]; date1904?: boolean };
 export type Snapshot = { bytes: Blob; info: Inspection };
 export const defaultStyle: Style = { bold: false, italic: false, color: '#24334a', background: '#ffffff', alignment: 'left' };

@@ -23,11 +23,26 @@ export function displayValue(cell: Cell | undefined, style: Style, date1904 = fa
   }
 }
 
-export function cellAppearance(style: Style, cell?: Cell): CSSProperties {
+export function textDirection(style: Style, cell?: Cell): 'rtl' | 'ltr' {
+  if (style.readingOrder === 2) {
+    return 'rtl';
+  }
+  if (style.readingOrder === 1) {
+    return 'ltr';
+  }
+  const firstLetter = cell?.value.match(/\p{Letter}/u)?.[0] ?? '';
+  return /[\p{Script=Arabic}\p{Script=Hebrew}\p{Script=Syriac}\p{Script=Thaana}\p{Script=Nko}\p{Script=Adlam}]/u.test(firstLetter) ? 'rtl' : 'ltr';
+}
+
+export function cellAlignment(style: Style, cell?: Cell): 'left' | 'right' | 'center' | 'justify' {
   const numeric = cell?.type === 'n' && cell.value !== '';
-  const alignment = style.alignment === 'general' ? numeric ? 'right' : cell?.type === 'b' || cell?.type === 'e' ? 'center' : 'left'
+  return style.alignment === 'general' ? numeric ? 'right' : cell?.type === 'b' || cell?.type === 'e' ? 'center' : textDirection(style, cell) === 'rtl' ? 'right' : 'left'
     : ['center', 'centerContinuous'].includes(style.alignment) ? 'center'
       : ['justify', 'distributed'].includes(style.alignment) ? 'justify' : style.alignment === 'right' ? 'right' : 'left';
+}
+
+export function cellAppearance(style: Style, cell?: Cell): CSSProperties {
+  const alignment = cellAlignment(style, cell);
   const result: CSSProperties = {
     color: style.color, background: style.background,
     fontWeight: style.bold ? 700 : 400, fontStyle: style.italic ? 'italic' : 'normal',
@@ -52,9 +67,11 @@ export function cellAppearance(style: Style, cell?: Cell): CSSProperties {
   return result;
 }
 
-export function textAppearance(style: Style): CSSProperties {
+export function textAppearance(style: Style, cell?: Cell): CSSProperties {
   const rotation = style.textRotation ?? 0;
   return {
+    direction: textDirection(style, cell),
+    unicodeBidi: 'isolate',
     whiteSpace: style.wrapText ? 'pre-wrap' : 'pre',
     overflowWrap: style.wrapText ? 'anywhere' : undefined,
     writingMode: rotation === 255 ? 'vertical-rl' : undefined,

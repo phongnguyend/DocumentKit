@@ -1,0 +1,6 @@
+.sheet-color-preview { border: 1px solid #cdd8e7; border-left-width: 5px; border-radius: 6px; padding: 12px; margin-block: 16px; overflow-wrap: anywhere; }
+.sheet-color-presets { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 16px; }
+.sheet-color-presets button { width: 32px; height: 32px; padding: 0; display: grid; place-items: center; color: white; border: 1px solid #ffffff60; }
+.sheet-color-presets button[aria-pressed=true] { outline: 2px solid currentColor; outline-offset: 2px; box-shadow: 0 0 0 3px #386cdc; }
+.sheet-color-clear { display: inline-flex; align-items: center; gap: 8px; margin-top: 12px; }
+.sheet-color-dialog h2 { display: flex; align-items: center; gap: 8px; }

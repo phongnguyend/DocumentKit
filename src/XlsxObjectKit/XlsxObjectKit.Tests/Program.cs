@@ -9,6 +9,11 @@ using XlsxObjectKit.Readers;
 using XlsxObjectKit.Writers;
 using static XlsxObjectKit.Models.XlsxNamespaces;
 
+if (args is ["--write-conditional-fixture", var conditionalPath])
+{
+    File.WriteAllBytes(conditionalPath, XlsxWriter.Write(ConditionalFormatTests.ReferenceFixture()));
+    return;
+}
 if (args is ["--write-formatting-fixture", var fixturePath])
 {
     File.WriteAllBytes(fixturePath, XlsxWriter.Write(FormattingFixture.Create()));
@@ -130,6 +135,7 @@ var styledAgain = XlsxEditor.SetCells(edited.WithXml("xl/styles.xml", existingSt
 Check(styledAgain.ReadXml("xl/styles.xml").Descendants(S + "cellXfs").Single().Elements().Last().Attribute("numFmtId")?.Value == "2", "Existing numeric formatting preserved");
 Validate(styledAgain);
 var formatted = XlsxWorkbookExtractor.Extract(FormattingFixture.Create());
+Check(formatted.Styles[5].ReadingOrder == 2 && formatted.Styles[6].ReadingOrder == 1, "Cell reading order survives style extraction");
 Check(formatted.Date1904, "1904 date system extracted");
 Check(formatted.Styles[1].FontName == "Arial" && formatted.Styles[1].FontSize == 20 && formatted.Styles[1].Strike && formatted.Styles[1].Underline == "double", "Font formatting extracted");
 Check(formatted.Styles[1].Color == "#008000" && formatted.Styles[1].Background == "#40ff40", "Theme color and luminance tint");
@@ -147,6 +153,9 @@ checks += ImageTests.Run();
 checks += StructureTests.Run();
 checks += DeletionTests.Run();
 checks += VisibilityTests.Run();
+checks += ConditionalFormatTests.Run();
+checks += SharedFormulaTests.Run();
+checks += SheetColorTests.Run();
 var resizedRow = XlsxEditor.Dimensions(XlsxEditor.Create(), "1", "B3", 36, 14, resizeColumn: false);
 Check(XlsxWorkbookExtractor.Extract(resizedRow).Sheets[0].RowHeights[3] == 36, "Row-only resizing saves height");
 Check(XlsxWorkbookExtractor.Extract(resizedRow).Sheets[0].ColumnWidths.Count == 0, "Row-only resizing leaves columns unchanged");

@@ -10,6 +10,8 @@ public sealed record XlsxCalculationResult(XlsxObjectDocument Document, int Calc
 
 public static class XlsxCalculator
 {
+    public static XlsxObjectDocument ExpandSharedFormulas(XlsxObjectDocument document) => SharedFormulas.Expand(document);
+
     public static XlsxCalculationResult Calculate(XlsxObjectDocument document) => new FormulaEngine(document).Run();
 }
 
@@ -26,8 +28,8 @@ internal sealed partial class FormulaEngine
 
     public FormulaEngine(XlsxObjectDocument document)
     {
-        source = document;
-        workbook = XlsxWorkbookExtractor.Extract(document);
+        source = SharedFormulas.Expand(document);
+        workbook = XlsxWorkbookExtractor.Extract(source);
         cells = workbook.Sheets.ToDictionary(sheet => sheet.Id, sheet => sheet.Cells.ToDictionary(cell => cell.Address, StringComparer.OrdinalIgnoreCase));
     }
 

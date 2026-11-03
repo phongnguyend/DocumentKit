@@ -13,13 +13,9 @@ internal static class XlsxStyleReader
         "00CCFF CCFFFF CCFFCC FFFF99 99CCFF FF99CC CC99FF FFCC99 3366FF 33CCCC 99CC00 FFCC00 FF9900 FF6600 666699 969696 " +
         "003366 339966 003300 333300 993300 993366 333399 333333").Split(' ');
 
-    public static IReadOnlyList<XlsxStyle> Read(XlsxObjectDocument document, string? part, string? themePart)
+    internal static Func<XElement?, string, string> ColorReader(XlsxObjectDocument document, string? part, string? themePart)
     {
-        if (part is null)
-        {
-            return [new(false, false, "#000000", "#ffffff", "general", "General")];
-        }
-        var root = document.ReadXml(part).Root!;
+        var root = part is null ? new XElement(S + "styleSheet") : document.ReadXml(part).Root!;
         XNamespace drawing = "http://schemas.openxmlformats.org/drawingml/2006/main";
         var theme = themePart is null ? null : document.ReadXml(themePart);
         var scheme = theme?.Descendants(drawing + "clrScheme").FirstOrDefault();
@@ -49,6 +45,19 @@ internal static class XlsxStyleReader
             var tint = Math.Clamp(Number(node, "tint", 0), -1, 1);
             return Tint(rgb, tint).ToLowerInvariant();
         }
+        return Color;
+    }
+
+    public static IReadOnlyList<XlsxStyle> Read(XlsxObjectDocument document, string? part, string? themePart)
+    {
+        if (part is null)
+        {
+            return [new(false, false, "#000000", "#ffffff", "general", "General")];
+        }
+        var root = document.ReadXml(part).Root!;
+        var Color = ColorReader(document, part, themePart);
+        XNamespace drawing = "http://schemas.openxmlformats.org/drawingml/2006/main";
+        var theme = themePart is null ? null : document.ReadXml(themePart);
         var fonts = root.Element(S + "fonts")?.Elements().ToArray() ?? [];
         var fills = root.Element(S + "fills")?.Elements().ToArray() ?? [];
         var borders = root.Element(S + "borders")?.Elements().ToArray() ?? [];
@@ -106,6 +115,7 @@ internal static class XlsxStyleReader
                 VerticalAlignment = (string?)alignment.Attribute("vertical") ?? "bottom",
                 Indent = Math.Clamp((int?)alignment.Attribute("indent") ?? 0, 0, 250),
                 TextRotation = (int?)alignment.Attribute("textRotation") ?? 0,
+                ReadingOrder = Math.Clamp((int?)alignment.Attribute("readingOrder") ?? 0, 0, 2),
                 Borders = edges
             });
         }

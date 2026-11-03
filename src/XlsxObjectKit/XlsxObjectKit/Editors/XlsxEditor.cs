@@ -31,13 +31,44 @@ public static class XlsxEditor
         return new(parts);
     }
 
+    public static XlsxObjectDocument SetSheetColor(XlsxObjectDocument document, string sheetId, string? color)
+    {
+        if (color is not null && !Regex.IsMatch(color, "^#[0-9a-fA-F]{6}$"))
+        {
+            throw new ArgumentException("Use a six-digit hexadecimal sheet color, or null to clear it.");
+        }
+        var sheet = XlsxWorkbookExtractor.Extract(document).Sheets.FirstOrDefault(s => s.Id == sheetId)
+            ?? throw new ArgumentException("Worksheet not found.");
+        Guard(document, sheet.Part);
+        var xml = document.ReadXml(sheet.Part);
+        var properties = xml.Root!.Element(S + "sheetPr");
+        properties?.Element(S + "tabColor")?.Remove();
+        if (color is not null)
+        {
+            if (properties is null)
+            {
+                properties = new XElement(S + "sheetPr");
+                xml.Root.AddFirst(properties);
+            }
+            properties.AddFirst(new XElement(S + "tabColor", new XAttribute("rgb", "FF" + color[1..].ToUpperInvariant())));
+        }
+        return document.WithXml(sheet.Part, xml);
+    }
+
     internal static void Guard(XlsxObjectDocument document, string? part = null)
     {
-        if (document.PartNames.Any(name => name.StartsWith("_xmlsignatures/", StringComparison.Ordinal))
-            || document.ReadXml("xl/workbook.xml").Descendants(S + "workbookProtection").Any()
-            || part is not null && document.ReadXml(part).Descendants(S + "sheetProtection").Any())
+        static bool Enabled(XElement element, params string[] attributes) => attributes.Any(name => (bool?)element.Attribute(name) == true);
+        if (document.PartNames.Any(name => name.StartsWith("_xmlsignatures/", StringComparison.Ordinal)))
         {
-            throw new NotSupportedException("Signed or protected workbooks/worksheets cannot be edited.");
+            throw new NotSupportedException("Digitally signed workbooks cannot be edited without invalidating their signatures.");
+        }
+        if (document.ReadXml("xl/workbook.xml").Descendants(S + "workbookProtection").Any(p => Enabled(p, "lockStructure", "lockWindows", "lockRevision")))
+        {
+            throw new NotSupportedException("Workbook protection is enabled. Unprotect the workbook before editing.");
+        }
+        if (part is not null && document.ReadXml(part).Descendants(S + "sheetProtection").Any(p => Enabled(p, "sheet", "objects", "scenarios")))
+        {
+            throw new NotSupportedException("Worksheet protection is enabled. Unprotect the worksheet before editing.");
         }
     }
 

@@ -1,3 +1,5 @@
+import { SheetColorDialog } from './components/SheetColorDialog';
+import { ConditionalFormatDialog } from './components/ConditionalFormatDialog';
 import { StrictMode, useEffect, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import { Merge, Split, ImagePlus, Paintbrush, Calculator, Download, FolderOpen, Sheet as SheetIcon, Plus, X, Save, Trash2, Pencil, ArrowUp, ArrowDown, Undo2, Redo2, Bold, Italic } from 'lucide-react';
@@ -31,6 +33,8 @@ function Workbook({ tab, onDirty, onBusy }: { tab: Tab & { initial: Snapshot }; 
   const [format, setFormat] = useState<Style>(defaultStyle);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+  const [sheetColorOpen, setSheetColorOpen] = useState(false);
+  const [conditionalOpen, setConditionalOpen] = useState(false);
   const [dialog, setDialog] = useState<string | null>(null);
   const [painter, setPainter] = useState<{ sheetId: string; address: string; locked: boolean } | null>(null);
   const [selectedImage, setSelectedImage] = useState<string>();
@@ -204,6 +208,7 @@ function Workbook({ tab, onDirty, onBusy }: { tab: Tab & { initial: Snapshot }; 
         }
       }} onDoubleClick={() => setPainter({ sheetId: sheet.id, address: selected, locked: true })}><Paintbrush size={16} />Format Painter</button>
       <button disabled={busy} onClick={() => void edit({ action: 'recalculate' })}><Calculator size={16} />Recalculate</button>
+      <button disabled={busy} onClick={() => setConditionalOpen(true)}><Paintbrush size={16} />Conditional formatting</button>
       <ToolbarMenu label="Insert" icon={Plus}>
         <button disabled={busy || !!image || Math.abs(parse(selectedRange.split(':').at(-1)!)[0] - parse(selectedRange.split(':')[0])[0]) >= 10000} onClick={() => void insertCells(true, false)}><Plus size={16} />Insert rows above</button>
         <button disabled={busy || !!image || Math.abs(parse(selectedRange.split(':').at(-1)!)[0] - parse(selectedRange.split(':')[0])[0]) >= 10000} onClick={() => void insertCells(true, true)}><Plus size={16} />Insert rows below</button>
@@ -223,6 +228,7 @@ function Workbook({ tab, onDirty, onBusy }: { tab: Tab & { initial: Snapshot }; 
         {!!sheet.hiddenColumns?.length && <button disabled={busy} onClick={() => void visibility(false, false, true)}>Unhide all columns</button>}
       </ToolbarMenu>
       <ToolbarMenu label="Worksheet" icon={SheetIcon}>
+        <button disabled={busy} onClick={() => setSheetColorOpen(true)}><Paintbrush size={16} />Worksheet color</button>
         <button disabled={busy} onClick={() => openSheetDialog('add-sheet')}><Plus size={16} />Add worksheet</button>
         <button disabled={busy} onClick={() => openSheetDialog('rename-sheet')}><Pencil size={16} />Rename worksheet</button>
         <button disabled={busy || snapshot.info.sheets.filter(item => !item.hidden).length <= 1} onClick={() => openSheetDialog('delete-sheet')}><Trash2 size={16} />Delete worksheet</button>
@@ -241,7 +247,7 @@ function Workbook({ tab, onDirty, onBusy }: { tab: Tab & { initial: Snapshot }; 
     </div></div>
     {error && <div role="alert" className="error-banner">{error}<button aria-label="Dismiss error" onClick={() => setError('')}><X size={14} /></button></div>}
     <div className="spreadsheet-layout">
-      <aside className="sheets-panel"><h2>Worksheets <small>{snapshot.info.sheets.length}</small></h2>{snapshot.info.sheets.map(item => <button key={item.id} disabled={busy || item.hidden} aria-current={sheet.id === item.id ? 'page' : undefined} onClick={() => {
+      <aside className="sheets-panel"><h2>Worksheets <small>{snapshot.info.sheets.length}</small></h2>{snapshot.info.sheets.map(item => <button key={item.id} style={{ boxShadow: item.tabColor ? `inset 4px 0 0 ${item.tabColor}` : undefined }} disabled={busy || item.hidden} aria-current={sheet.id === item.id ? 'page' : undefined} onClick={() => {
         setSheetId(item.id);
         setSelected('A1');
       }}><SheetIcon size={16} /><span>{item.name}</span>{item.hidden && <small>Hidden</small>}</button>)}<button disabled={busy} className="add-sheet" onClick={() => openSheetDialog('add-sheet')}><Plus size={16} />Add worksheet</button></aside>
@@ -305,6 +311,8 @@ function Workbook({ tab, onDirty, onBusy }: { tab: Tab & { initial: Snapshot }; 
     </div>
     <footer><span>XlsxObjectKit · Native worksheet grid</span><span>Changes stay in this tab. Download to keep your workbook.</span></footer>
     {imageDialog && <ImageSourceDialog initialBounds={imageDialog === 'replace' && image ? { x: image.x, y: image.y, width: image.width, height: image.height } : { x: columnPosition(sheet, column), y: rowPosition(sheet, row), width: 240, height: 160 }} replacing={imageDialog === 'replace'} onClose={() => setImageDialog(null)} onApply={request => edit({ ...request, action: imageDialog === 'replace' ? 'replace-image' : 'add-image', imageId: image?.id })} />}
+    {sheetColorOpen && <SheetColorDialog name={sheet.name} initialColor={sheet.tabColor} busy={busy} error={error} onClose={() => setSheetColorOpen(false)} onApply={tabColor => edit({ action: 'set-sheet-color', tabColor })} />}
+    {conditionalOpen && <ConditionalFormatDialog sheet={sheet} initialRange={selectedRange} busy={busy} onEdit={edit} onClose={() => setConditionalOpen(false)} />}
     {dialog && <Modal labelledBy="sheet-dialog" onClose={() => setDialog(null)} canClose={!busy}><div className="modal-heading"><h2 id="sheet-dialog">{dialog === 'delete-sheet' ? 'Delete worksheet' : dialog === 'rename-sheet' ? 'Rename worksheet' : 'Add worksheet'}</h2><button aria-label="Close worksheet dialog" disabled={busy} onClick={() => setDialog(null)}><X size={18} /></button></div>
       {dialog === 'delete-sheet' ? <p>Delete “{sheet.name}”? You can undo this change in the current tab.</p> : <label>Worksheet name<input aria-label="Worksheet name" value={sheetName} maxLength={31} onChange={event => setSheetName(event.target.value)} /></label>}
       <div className="modal-actions"><button disabled={busy} onClick={() => setDialog(null)}>Cancel</button><button className="primary" disabled={busy} onClick={async () => {

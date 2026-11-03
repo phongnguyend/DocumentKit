@@ -1,4 +1,6 @@
-import { useEffect, useMemo, useRef, useState, type PointerEvent } from 'react';
+import { conditionalStyle } from '../conditionalFormatting';
+import { useEffect, useMemo, useRef, useState, type PointerEvent, type ReactNode } from 'react';
+import { textOverflowColumns } from '../cellOverflow';
 import { DimensionHandle } from './DimensionHandle';
 import { WorksheetImage } from './WorksheetImage';
 import { columnPosition, rowPosition } from '../types';
@@ -15,6 +17,8 @@ export function CellGrid({ sheet, styles, selected, onSelect, onEdit, onPaste, b
   onEdit: (value: string) => void; onPaste: (value: string) => void; busy: boolean; date1904?: boolean; canEditValue?: boolean; onPaint?: (addresses: string[]) => void; paintSource?: string;
 }) {
   const [scroll, setScroll] = useState(0);
+  const [scrollLeft, setScrollLeft] = useState(0);
+  const [viewportWidth, setViewportWidth] = useState(1000);
   const [viewportHeight, setViewportHeight] = useState(700);
   const [editing, setEditing] = useState<string | null>(null);
   const [paintRange, setPaintRange] = useState<{ start: [number, number]; end: [number, number]; axis?: 'row' | 'column'; anchor?: string } | null>(null);
@@ -26,15 +30,58 @@ export function CellGrid({ sheet, styles, selected, onSelect, onEdit, onPaste, b
   const [selectedRow, selectedColumn] = parse(selected);
   // Bound the browser scroll area; Go to cell opens any other worksheet window.
   const base = Math.floor((selectedRow - 1) / 10000) * 10000;
-  const firstColumn = Math.floor((selectedColumn - 1) / 26) * 26 + 1;
-  const columns = Array.from({ length: Math.min(26, 16385 - firstColumn) }, (_, i) => firstColumn + i);
+  const firstColumn = 1;
+  const usedLastColumn = useMemo(() => {
+    let last = 26;
+    for (const cell of sheet.cells) {
+      if (cell.value !== '' || cell.formula != null) {
+        last = Math.max(last, parse(cell.address)[1]);
+      }
+    }
+    for (const range of sheet.merges) {
+      last = Math.max(last, parse(range.split(':').at(-1)!)[1]);
+    }
+    const imageRight = Math.max(0, ...(sheet.images ?? []).map(image => image.x + image.width));
+    const hidden = new Set(sheet.hiddenColumns ?? []);
+    let offset = 0;
+    for (let column = 1; column <= 16384 && offset < imageRight; column++) {
+      offset += hidden.has(column) ? 0 : Math.max(1, Math.min(255, sheet.columnWidths[column] ?? sheet.defaultColumnWidth ?? 8.43)) * 7 + 5;
+      last = Math.max(last, column);
+    }
+    return Math.min(16384, last);
+  }, [sheet]);
+  const columnCount = Math.max(usedLastColumn, selectedColumn);
+  const columns = useMemo(() => Array.from({ length: columnCount }, (_, i) => i + 1), [columnCount]);
   const count = Math.min(10000, 1048576 - base);
+  const conditionalRules = useMemo(() => [...(sheet.conditionalRules ?? [])].sort((a, b) => a.priority - b.priority), [sheet]);
   const cells = useMemo(() => new Map(sheet.cells.map(cell => [cell.address, cell])), [sheet]);
   const hiddenRows = useMemo(() => new Set(sheet.hiddenRows ?? []), [sheet]);
   const hiddenColumns = useMemo(() => new Set(sheet.hiddenColumns ?? []), [sheet]);
-  const widths = columns.map(column => hiddenColumns.has(column) ? 0 : Math.max(1, Math.min(255, sheet.columnWidths[column] ?? sheet.defaultColumnWidth ?? 8.43)) * 7 + 5);
-  const x = [48];
-  widths.forEach(width => x.push(x[x.length - 1] + width));
+  const widths = useMemo(() => columns.map(column => hiddenColumns.has(column) ? 0 : Math.max(1, Math.min(255, sheet.columnWidths[column] ?? sheet.defaultColumnWidth ?? 8.43)) * 7 + 5), [sheet, hiddenColumns, columns]);
+  const x = useMemo(() => {
+    const offsets = [48];
+    widths.forEach(width => offsets.push(offsets[offsets.length - 1] + width));
+    return offsets;
+  }, [widths]);
+  const firstVisibleColumn = Math.max(0, x.findIndex((offset, index) => index < columns.length && x[index + 1] > scrollLeft) - 3);
+  const rightEdge = x.findIndex(offset => offset >= scrollLeft + viewportWidth);
+  const lastVisibleColumn = Math.min(columns.length, (rightEdge < 0 ? columns.length : rightEdge) + 3);
+  const visibleColumns = columns.slice(firstVisibleColumn, lastVisibleColumn);
+  const storedColumns = useMemo(() => {
+    const result = new Map<number, number[]>();
+    for (const cell of sheet.cells) {
+      if (cell.value !== '' || cell.formula != null) {
+        const [row, column] = parse(cell.address);
+        const list = result.get(row) ?? [];
+        list.push(column);
+        result.set(row, list);
+      }
+    }
+    for (const list of result.values()) {
+      list.sort((a, b) => a - b);
+    }
+    return result;
+  }, [sheet]);
   const y = useMemo(() => {
     const offsets = [32];
     for (let i = 1; i <= count; i++) {
@@ -52,6 +99,7 @@ export function CellGrid({ sheet, styles, selected, onSelect, onEdit, onPaste, b
   useEffect(() => {
     const observer = new ResizeObserver(entries => {
       const height = entries[0]?.contentRect.height;
+      setViewportWidth(entries[0]?.contentRect.width ?? 1000);
       if (height > 0) {
         setViewportHeight(height);
       }
@@ -66,6 +114,12 @@ export function CellGrid({ sheet, styles, selected, onSelect, onEdit, onPaste, b
     if (preserveScroll.current) {
       preserveScroll.current = false;
       return;
+    }
+    const left = x[selectedColumn - 1];
+    const right = x[selectedColumn];
+    if (host.current && (left < host.current.scrollLeft || right > host.current.scrollLeft + host.current.clientWidth)) {
+      host.current.scrollLeft = left < host.current.scrollLeft ? left : right - host.current.clientWidth;
+      setScrollLeft(host.current.scrollLeft);
     }
     const top = y[selectedRow - base - 1];
     if (host.current && (top < host.current.scrollTop + 32 || top > host.current.scrollTop + host.current.clientHeight - 40)) {
@@ -177,6 +231,36 @@ export function CellGrid({ sheet, styles, selected, onSelect, onEdit, onPaste, b
     onSelectionAxisChange?.(visibleRange?.axis ?? null);
   }, [visibleRange?.axis, onSelectionAxisChange]);
 
+  function rowColumns(row: number) {
+    const result = new Set(visibleColumns);
+    // Keep offscreen anchors whose merged area or overflowing text can still be visible.
+    for (const merge of merges) {
+      if (row >= merge.first[0] && row <= merge.last[0] && merge.last[1] >= firstVisibleColumn + 1 && merge.first[1] <= lastVisibleColumn) {
+        let anchor = merge.first[1];
+        while (hiddenColumns.has(anchor) && anchor <= merge.last[1]) {
+          anchor++;
+        }
+        result.add(anchor);
+      }
+    }
+    let before: number | undefined;
+    for (const column of storedColumns.get(row) ?? []) {
+      if (hiddenColumns.has(column)) {
+        continue;
+      }
+      if (column < firstVisibleColumn + 1) {
+        before = column;
+      } else if (column > lastVisibleColumn) {
+        result.add(column);
+        break;
+      }
+    }
+    if (before !== undefined) {
+      result.add(before);
+    }
+    return [...result].sort((a, b) => a - b);
+  }
+  const overflowText: ReactNode[] = [];
   return <div className={'cell-grid' + (onPaint ? ' painting' : '')} ref={host} role="grid" aria-label={sheet.name + ' cells'} aria-rowcount={1048576} aria-colcount={16384} tabIndex={0}
     onPointerMove={event => updateDrag(event.clientX, event.clientY)}
     onPointerCancel={cancelDrag} onLostPointerCapture={cancelDrag}
@@ -217,7 +301,10 @@ export function CellGrid({ sheet, styles, selected, onSelect, onEdit, onPaste, b
         onPaint(targets);
       }
     }}
-    onScroll={event => setScroll(event.currentTarget.scrollTop)} onCopy={event => {
+    onScroll={event => {
+      setScroll(event.currentTarget.scrollTop);
+      setScrollLeft(event.currentTarget.scrollLeft);
+    }} onCopy={event => {
       if (editing !== null) {
         return;
       }
@@ -302,7 +389,7 @@ export function CellGrid({ sheet, styles, selected, onSelect, onEdit, onPaste, b
     }}>
     <div className="grid-surface" style={{ width: x.at(-1), height: y.at(-1) }}>
       {visibleRange && <div className={onPaint ? "paint-range" : "selected-range"} aria-hidden="true" style={{ left: x[Math.max(0, rangeLeft - firstColumn)], top: y[Math.max(0, rangeTop - base - 1)], width: x[Math.min(columns.length, rangeRight - firstColumn + 1)] - x[Math.max(0, rangeLeft - firstColumn)], height: y[Math.min(count, rangeBottom - base)] - y[Math.max(0, rangeTop - base - 1)] }} />}
-      <div className="column-headings" role="row" style={{ width: x.at(-1) }}><div className="corner" />{columns.map((column, i) => hiddenColumns.has(column) ? null : <div role="columnheader" aria-selected={visibleRange?.axis === 'column' && column >= rangeLeft && column <= rangeRight} key={column} style={{ left: x[i], width: widths[i] }}><button type="button" className="header-select" onKeyDown={event => event.stopPropagation()} aria-label={'Select column ' + address(1, column).replace('1', '')} disabled={busy || !!onPaint} onPointerDown={event => startHeaderDrag(event, 'column', column)} onClick={event => {
+      <div className="column-headings" role="row" style={{ width: x.at(-1) }}><div className="corner" />{visibleColumns.map(column => hiddenColumns.has(column) ? null : <div role="columnheader" aria-selected={visibleRange?.axis === 'column' && column >= rangeLeft && column <= rangeRight} key={column} style={{ left: x[column - 1], width: widths[column - 1] }}><button type="button" className="header-select" onKeyDown={event => event.stopPropagation()} aria-label={'Select column ' + address(1, column).replace('1', '')} disabled={busy || !!onPaint} onPointerDown={event => startHeaderDrag(event, 'column', column)} onClick={event => {
         if (event.detail === 0) {
           selectHeader('column', column);
         }
@@ -313,7 +400,8 @@ export function CellGrid({ sheet, styles, selected, onSelect, onEdit, onPaste, b
             selectHeader('row', base + index + 1);
           }
         }}>{base + index + 1}</button><DimensionHandle axis="row" label={String(base + index + 1)} size={sheet.rowHeights[base + index + 1] ?? sheet.defaultRowHeight ?? 15} disabled={busy || !!onPaint} onSave={value => onResize?.('row', address(base + index + 1, 1), value)} /></div>
-        {columns.map((column, ci) => {
+        {rowColumns(base + index + 1).map(column => {
+          const ci = column - 1;
           if (hiddenColumns.has(column)) {
             return null;
           }
@@ -335,9 +423,25 @@ export function CellGrid({ sheet, styles, selected, onSelect, onEdit, onPaste, b
             key = address(...merge.first);
           }
           const cell = cells.get(key);
-          const style = styles[cell?.style ?? sheet.rowStyles?.[row] ?? sheet.columnStyles?.[column] ?? 0] ?? defaultStyle;
+          const style = conditionalStyle(cell, styles[cell?.style ?? sheet.rowStyles?.[row] ?? sheet.columnStyles?.[column] ?? 0] ?? defaultStyle, conditionalRules);
           const width = merge ? x[Math.min(columns.length, merge.last[1] - firstColumn + 1)] - x[ci] : widths[ci];
           const height = merge ? y[Math.min(count, merge.last[0] - base)] - y[index] : y[index + 1] - y[index];
+          const appearance = cellAppearance(style, cell);
+          const [overflowStart, overflowEnd] = textOverflowColumns(cell, style, row, ci, columns, cells, hiddenColumns, merges, editing !== null ? selected : undefined, [Math.min(ci, firstVisibleColumn), Math.max(ci, lastVisibleColumn - 1)]);
+          const overflowing = (overflowStart !== ci || overflowEnd !== ci) && !(selected === key && editing !== null);
+          if (overflowing) {
+            // Separate paint layer keeps neighboring cells selectable and their backgrounds intact.
+            const leftPadding = Number(appearance.paddingLeft ?? 4);
+            const rightPadding = Number(appearance.paddingRight ?? 4);
+            const contentWidth = Math.max(0, width - leftPadding - rightPadding - 1);
+            const anchor = appearance.textAlign === 'right' ? 1 : appearance.textAlign === 'center' ? 0.5 : 0;
+            overflowText.push(<div key={key} aria-hidden="true" data-overflow-cell={key} className="cell-overflow"
+              style={{ ...appearance, top: y[index], left: x[overflowStart], width: x[overflowEnd + 1] - x[overflowStart] - 1, height: height - 1,
+                background: 'transparent', border: 0, padding: '1px 0' }}>
+              <span className="cell-text" style={{ ...textAppearance(style, cell), width: 'max-content', transform: `translateX(${-anchor * 100}%)`,
+                marginLeft: x[ci] - x[overflowStart] + leftPadding + anchor * contentWidth }}>{displayValue(cell, style, date1904)}</span>
+            </div>);
+          }
           return <div key={column} role="gridcell" aria-label={key} aria-selected={visibleRange ? row >= rangeTop && row <= rangeBottom && column >= rangeLeft && column <= rangeRight : selected === key} aria-colindex={column}
             className={'grid-cell' + (selected === key && !visibleRange ? ' selected' : '') + (paintSource === key ? ' paint-source' : '')} style={{ top: y[index], left: x[ci], width, height, ...cellAppearance(style, cell) }}
             onPointerDown={event => {
@@ -386,10 +490,11 @@ export function CellGrid({ sheet, styles, selected, onSelect, onEdit, onPaste, b
                 setEditing(null);
                 host.current?.focus();
               }
-            }} /> : cell?.formula != null && !(cell.hasCachedValue ?? !!cell.value) ? <span className="formula-pending">={cell.formula}</span> : <span className="cell-text" style={textAppearance(style)}>{displayValue(cell, style, date1904)}</span>}
+            }} /> : cell?.formula != null && !(cell.hasCachedValue ?? !!cell.value) ? <span className="formula-pending">={cell.formula}</span> : <span className="cell-text" style={{ ...textAppearance(style, cell), opacity: overflowing ? 0 : undefined }}>{displayValue(cell, style, date1904)}</span>}
           </div>;
         })}
       </div>)}
+      {overflowText}
       {(sheet.images ?? []).map(image => <WorksheetImage key={image.id} image={image} selected={selectedImage === image.id} busy={busy || !!onPaint}
         offsetX={48 - columnPosition(sheet, firstColumn)} offsetY={32 - rowPosition(sheet, base + 1)}
         onSelect={() => onSelectImage?.(image.id)} onSave={bounds => onImageEdit?.(image.id, 'transform-image', bounds)} onDelete={() => onImageEdit?.(image.id, 'delete-image')} />)}

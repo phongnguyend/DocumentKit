@@ -22,12 +22,14 @@ internal static class FormattingFixture
               <fills count="3"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill><fill><patternFill patternType="solid"><fgColor theme="4" tint="0.5"/></patternFill></fill></fills>
               <borders count="2"><border/><border><left style="thin"><color indexed="4"/></left><bottom style="double"><color rgb="FFFF0000"/></bottom></border></borders>
               <cellStyleXfs count="2"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/><xf numFmtId="0" fontId="1" fillId="2" borderId="1"><alignment vertical="center"/></xf></cellStyleXfs>
-              <cellXfs count="5">
+              <cellXfs count="7">
                 <xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/>
                 <xf numFmtId="164" fontId="1" fillId="2" borderId="1" xfId="0"><alignment horizontal="right" vertical="center"/></xf>
                 <xf numFmtId="10" fontId="0" fillId="0" borderId="0" xfId="0"/>
                 <xf numFmtId="165" fontId="0" fillId="0" borderId="0" xfId="0"/>
                 <xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="1" applyFont="0" applyFill="0" applyBorder="0"><alignment wrapText="1" horizontal="left" indent="1"/></xf>
+                <xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"><alignment readingOrder="2"/></xf>
+                <xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"><alignment horizontal="right" readingOrder="1"/></xf>
               </cellXfs>
             </styleSheet>
             """))
@@ -41,6 +43,8 @@ internal static class FormattingFixture
               <row r="3"><c r="A3" s="3"><v>0</v></c></row>
               <row r="4" ht="90" customHeight="1" s="4" customFormat="1"><c r="A4" t="inlineStr"><is><t>Wrapped sample text spanning several lines</t></is></c><c r="B4" s="0" t="inlineStr"><is><t>Explicit default</t></is></c></row>
               <row r="5"><c r="B5" t="inlineStr"><is><t>Column style</t></is></c></row>
+              <row r="6"><c r="E6" s="5" t="inlineStr"><is><t>Security classification: Internal use only</t></is></c></row>
+              <row r="7"><c r="E7" s="6" t="inlineStr"><is><t>Security classification: Internal use only</t></is></c></row>
             </sheetData></worksheet>
             """));
     }
