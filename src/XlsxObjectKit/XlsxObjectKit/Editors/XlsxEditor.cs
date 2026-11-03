@@ -41,6 +41,79 @@ public static class XlsxEditor
         }
     }
 
+    public static XlsxObjectDocument ApplyFormat(XlsxObjectDocument document, string sourceSheetId, string sourceAddress, string targetSheetId, IReadOnlyList<string> addresses)
+    {
+        ArgumentNullException.ThrowIfNull(addresses);
+        ArgumentNullException.ThrowIfNull(sourceAddress);
+        if (addresses.Count is < 1 or > 10000)
+        {
+            throw new ArgumentException("Choose 1–10,000 destination cells.");
+        }
+        if (addresses.Any(address => string.IsNullOrWhiteSpace(address)))
+        {
+            throw new ArgumentException("Destination addresses must not be empty.");
+        }
+        var workbook = XlsxWorkbookExtractor.Extract(document);
+        var source = workbook.Sheets.Single(sheet => sheet.Id == sourceSheetId);
+        var target = workbook.Sheets.Single(sheet => sheet.Id == targetSheetId);
+        Guard(document, target.Part);
+        var location = CellAddress.Parse(sourceAddress);
+        var style = source.Cells.FirstOrDefault(cell => cell.Address.Equals(sourceAddress, StringComparison.OrdinalIgnoreCase))?.Style
+            ?? source.RowStyles.GetValueOrDefault(location.Row, source.ColumnStyles.GetValueOrDefault(location.Column, 0));
+        if (style < 0 || style >= workbook.Styles.Count)
+        {
+            throw new InvalidDataException("Invalid source style index.");
+        }
+        var xml = document.ReadXml(target.Part);
+        var data = xml.Root!.Element(S + "sheetData")!;
+        var hasStyles = XlsxWorkbookExtractor.StylesPart(document) is not null;
+        foreach (var address in addresses.Select(value => value.ToUpperInvariant()).Distinct())
+        {
+            var position = CellAddress.Parse(address);
+            foreach (var merge in target.Merges)
+            {
+                var ends = merge.Split(':');
+                var first = CellAddress.Parse(ends[0]);
+                var last = CellAddress.Parse(ends[^1]);
+                if (position.Row >= first.Row && position.Row <= last.Row && position.Column >= first.Column && position.Column <= last.Column && address != ends[0])
+                {
+                    throw new NotSupportedException("Paint the top-left cell of a merged range.");
+                }
+            }
+            var row = data.Elements(S + "row").FirstOrDefault(item => (int?)item.Attribute("r") == position.Row);
+            if (row is null)
+            {
+                row = new XElement(S + "row", new XAttribute("r", position.Row));
+                var next = data.Elements(S + "row").FirstOrDefault(item => (int?)item.Attribute("r") > position.Row);
+                if (next is null)
+                {
+                    data.Add(row);
+                }
+                else
+                {
+                    next.AddBeforeSelf(row);
+                }
+            }
+            var cell = row.Elements(S + "c").FirstOrDefault(item => (string?)item.Attribute("r") == address);
+            if (cell is null)
+            {
+                cell = new XElement(S + "c", new XAttribute("r", address));
+                var next = row.Elements(S + "c").FirstOrDefault(item => CellAddress.Parse((string)item.Attribute("r")!).Column > position.Column);
+                if (next is null)
+                {
+                    row.Add(cell);
+                }
+                else
+                {
+                    next.AddBeforeSelf(cell);
+                }
+            }
+            cell.SetAttributeValue("s", hasStyles ? style : null);
+        }
+        xml.Root.Element(S + "dimension")?.Remove();
+        return document.WithXml(target.Part, xml);
+    }
+
     public static XlsxObjectDocument SetCells(XlsxObjectDocument document, string sheetId, IReadOnlyList<XlsxCellEdit> edits, XlsxFormat? format = null)
     {
         if (edits.Count is < 1 or > 10000)

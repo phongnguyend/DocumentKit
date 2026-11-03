@@ -48,6 +48,12 @@ It supports a documented formula subset, rather than full Excel compatibility.
   Both the 1900 and 1904 date systems are respected. The formula bar and cell editor
   retain the original values; display formatting does not change workbook data.
 - Set the selected row's height and column's width in the Inspector.
+- **Format Painter** copies the selected cell's full style to another cell without
+  changing values, formulas, cached results, dimensions or merged regions. Click
+  once to paint one cell or range, double-click to keep painting, and press Escape to cancel.
+  It works across worksheets in the same workbook, copies inherited styles, and
+  each application is one undoable edit. Keyboard users can navigate to a destination
+  with arrow keys and press Enter. Drag across destination cells to paint a rectangular range (up to 10,000 cells) in one undoable edit. Escape cancels a pending drag. Merged cells retain their existing structure; only their anchor cells are painted.
 - Add, rename, delete and reorder worksheets from the Worksheet menu.
 - Download the edited XLSX. Undo/redo retains up to 20 snapshots, with a 100 MB
   history budget excluding the current snapshot (one prior snapshot is retained).
@@ -106,8 +112,10 @@ API endpoints:
 - `POST /api/documents/edit`: multipart `file` and `edit` JSON; return edited XLSX.
 
 Edit actions are `cells`, `dimensions`, `add-sheet`, `rename-sheet`,
-`delete-sheet`, `move-sheet` and `recalculate`. A `format` on a cell request changes only styling.
+`delete-sheet`, `move-sheet`, `recalculate` and `apply-format`. A `format` on a cell request changes only styling.
 Worksheet positions are zero-based. Sheet IDs are stable workbook IDs, not positions.
+`apply-format` takes `sourceSheetId`, `sourceAddress`, the destination `sheetId`, and
+an `addresses` array (up to 10,000 cells). The core API is `XlsxEditor.ApplyFormat`.
 
 ## Native formula calculation
 

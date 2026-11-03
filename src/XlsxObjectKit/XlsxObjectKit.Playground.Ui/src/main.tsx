@@ -1,6 +1,6 @@
 import { StrictMode, useEffect, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
-import { Calculator, Download, FolderOpen, Sheet as SheetIcon, Plus, X, Save, Trash2, Pencil, ArrowUp, ArrowDown, Undo2, Redo2, Bold, Italic } from 'lucide-react';
+import { Paintbrush, Calculator, Download, FolderOpen, Sheet as SheetIcon, Plus, X, Save, Trash2, Pencil, ArrowUp, ArrowDown, Undo2, Redo2, Bold, Italic } from 'lucide-react';
 import { Modal } from './components/Modal';
 import { ToolbarMenu } from './components/ToolbarMenu';
 import { CellGrid } from './components/CellGrid';
@@ -23,6 +23,7 @@ function Workbook({ tab, onDirty, onBusy }: { tab: Tab & { initial: Snapshot }; 
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [dialog, setDialog] = useState<string | null>(null);
+  const [painter, setPainter] = useState<{ sheetId: string; address: string; locked: boolean } | null>(null);
   const [sheetName, setSheetName] = useState('');
   const [rowHeight, setRowHeight] = useState(21);
   const [columnWidth, setColumnWidth] = useState(14);
@@ -39,9 +40,40 @@ function Workbook({ tab, onDirty, onBusy }: { tab: Tab & { initial: Snapshot }; 
     setColumnWidth(sheet.columnWidths[column] ?? sheet.defaultColumnWidth ?? 8.43);
   }, [snapshot, selected, sheet.id]);
 
+  useEffect(() => {
+    function cancelPainter(event: KeyboardEvent) {
+      if (event.key === 'Escape') {
+        setPainter(null);
+      }
+    }
+    window.addEventListener('keydown', cancelPainter);
+    return () => window.removeEventListener('keydown', cancelPainter);
+  }, []);
+
+  async function paint(destinations: string[]) {
+    if (!painter || busy) {
+      return;
+    }
+    if (destinations.length > 10000) {
+      setError('Paint up to 10,000 cells at a time.');
+      return;
+    }
+    const source = painter;
+    const saved = await edit({ action: 'apply-format', sourceSheetId: source.sheetId, sourceAddress: source.address, addresses: destinations });
+    if (saved) {
+      setSelected(destinations[0]);
+      if (!source.locked) {
+        setPainter(current => current === source ? null : current);
+      }
+    }
+  }
+
   async function edit(request: object) {
     if (busy) {
       return false;
+    }
+    if (!('action' in request) || request.action !== 'apply-format') {
+      setPainter(null);
     }
     setBusy(true);
     onBusy(true);
@@ -89,23 +121,31 @@ function Workbook({ tab, onDirty, onBusy }: { tab: Tab & { initial: Snapshot }; 
     }
   }
   function openSheetDialog(action: string) {
+    setPainter(null);
     setSheetName(action === 'rename-sheet' ? sheet.name : 'Sheet' + (snapshot.info.sheets.length + 1));
     setDialog(action);
   }
   return <div className="workbook-shell">
     <div className="toolbar"><span className="document-name">{tab.name}</span><div className="toolbar-controls">
       <button aria-label="Undo" title="Undo" disabled={busy || !past.length} onClick={() => {
+        setPainter(null);
         setSnapshot(past[past.length - 1]);
         setPast(past.slice(0, -1));
         setFuture([snapshot, ...future]);
         onDirty(true);
       }}><Undo2 size={16} /></button>
       <button aria-label="Redo" title="Redo" disabled={busy || !future.length} onClick={() => {
+        setPainter(null);
         setSnapshot(future[0]);
         setPast([...past, snapshot]);
         setFuture(future.slice(1));
         onDirty(true);
       }}><Redo2 size={16} /></button>
+      <button aria-label="Format Painter" aria-pressed={!!painter} title="Format Painter: click for one cell, double-click to keep painting" disabled={busy} onClick={event => {
+        if (event.detail < 2) {
+          setPainter(current => current ? null : { sheetId: sheet.id, address: selected, locked: false });
+        }
+      }} onDoubleClick={() => setPainter({ sheetId: sheet.id, address: selected, locked: true })}><Paintbrush size={16} />Format Painter</button>
       <button disabled={busy} onClick={() => void edit({ action: 'recalculate' })}><Calculator size={16} />Recalculate</button>
       <ToolbarMenu label="Worksheet" icon={SheetIcon}>
         <button disabled={busy} onClick={() => openSheetDialog('add-sheet')}><Plus size={16} />Add worksheet</button>
@@ -131,6 +171,7 @@ function Workbook({ tab, onDirty, onBusy }: { tab: Tab & { initial: Snapshot }; 
         setSelected('A1');
       }}><SheetIcon size={16} /><span>{item.name}</span>{item.hidden && <small>Hidden</small>}</button>)}<button disabled={busy} className="add-sheet" onClick={() => openSheetDialog('add-sheet')}><Plus size={16} />Add worksheet</button></aside>
       <main className="sheet-workspace">
+    {painter && <div className="painter-status" role="status"><Paintbrush size={16} /><span>Copying format from {snapshot.info.sheets.find(item => item.id === painter.sheetId)?.name}!{painter.address}. {painter.locked ? 'Keep painting: click or drag across destination cells.' : 'Click or drag across destination cells.'} Escape to cancel.</span><button onClick={() => setPainter(null)} aria-label="Cancel Format Painter"><X size={16} /></button></div>}
         <form className="formula-bar" onSubmit={event => {
           event.preventDefault();
           void edit({ action: 'cells', cells: [cellEdit(value, selected, type)] });
@@ -147,7 +188,7 @@ function Workbook({ tab, onDirty, onBusy }: { tab: Tab & { initial: Snapshot }; 
             }
           }} /><span className="fx">fx</span><input aria-label="Formula bar" value={value} disabled={busy || !canEditValue} onChange={event => setValue(event.target.value)} /><button disabled={busy || !canEditValue} type="submit" title="Apply cell value" aria-label="Apply cell value"><Save size={16} /></button>
         </form>
-        <CellGrid date1904={snapshot.info.date1904} sheet={sheet} styles={snapshot.info.styles} selected={selected} onSelect={setSelected} busy={busy} canEditValue={canEditValue} onEdit={text => void edit({ action: 'cells', cells: [cellEdit(text, selected, type)] })} onPaste={paste} />
+        <CellGrid date1904={snapshot.info.date1904} sheet={sheet} styles={snapshot.info.styles} selected={selected} onSelect={setSelected} busy={busy} canEditValue={canEditValue && !painter} onPaint={painter ? destination => void paint(destination) : undefined} paintSource={painter?.sheetId === sheet.id ? painter.address : undefined} onEdit={text => void edit({ action: 'cells', cells: [cellEdit(text, selected, type)] })} onPaste={paste} />
         <div className="sheet-status"><select className="mobile-sheet-select" aria-label="Current worksheet" value={sheet.id} disabled={busy} onChange={event => {
           setSheetId(event.target.value);
           setSelected('A1');
