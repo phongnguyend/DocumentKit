@@ -1,10 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { cellAppearance, displayValue, textAppearance } from '../formatting';
-import { address, defaultStyle, parse, type Sheet, type Style } from '../types';
+import { address, cellEditValue, defaultStyle, parse, type Sheet, type Style } from '../types';
 
-export function CellGrid({ sheet, styles, selected, onSelect, onEdit, onPaste, busy, date1904 }: {
+export function CellGrid({ sheet, styles, selected, onSelect, onEdit, onPaste, busy, date1904, canEditValue = true }: {
   sheet: Sheet; styles: Style[]; selected: string; onSelect: (value: string) => void;
-  onEdit: (value: string) => void; onPaste: (value: string) => void; busy: boolean; date1904?: boolean;
+  onEdit: (value: string) => void; onPaste: (value: string) => void; busy: boolean; date1904?: boolean; canEditValue?: boolean;
 }) {
   const [scroll, setScroll] = useState(0);
   const [viewportHeight, setViewportHeight] = useState(700);
@@ -75,10 +75,10 @@ export function CellGrid({ sheet, styles, selected, onSelect, onEdit, onPaste, b
       if (delta) {
         event.preventDefault();
         onSelect(address(Math.max(1, Math.min(1048576, selectedRow + delta[0])), Math.max(1, Math.min(16384, selectedColumn + delta[1]))));
-      } else if (event.key === 'Enter' || event.key === 'F2') {
+      } else if (canEditValue && (event.key === 'Enter' || event.key === 'F2')) {
         event.preventDefault();
         const cell = cells.get(selected);
-        setEditing(cell?.formula != null ? '=' + cell.formula : cell?.value ?? '');
+        setEditing(cellEditValue(cell));
       } else if (event.key === 'Delete') {
         event.preventDefault();
         onEdit('');
@@ -107,9 +107,9 @@ export function CellGrid({ sheet, styles, selected, onSelect, onEdit, onPaste, b
                 host.current?.focus();
               }
             }} onDoubleClick={() => {
-              if (!busy) {
+              if (!busy && canEditValue) {
                 onSelect(key);
-                setEditing(cell?.formula != null ? '=' + cell.formula : cell?.value ?? '');
+                setEditing(cellEditValue(cell));
               }
             }}>
             {selected === key && editing !== null ? <input aria-label={'Edit ' + key} autoFocus value={editing} onChange={event => setEditing(event.target.value)} onClick={event => event.stopPropagation()} onKeyDown={event => {

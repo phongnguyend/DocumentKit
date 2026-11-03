@@ -30,6 +30,9 @@ It supports a documented formula subset, rather than full Excel compatibility.
   press Enter to save, Escape to cancel, and Delete to clear.
 - Use the formula bar or Inspector to edit text, numbers, booleans or formulas.
   Explicit Text type preserves leading zeros and literal strings beginning with `=`.
+  Existing cells select their stored value type automatically (formula cells stay
+  Formula regardless of their calculated result). Blank cells use Automatic.
+  Editing preserves the selected type; choose another type to convert a value.
 - Edits recalculate supported formulas and their dependencies automatically.
   **Recalculate** refreshes cached results in uploaded workbooks. Formula expressions
   remain editable and calculated values are saved in the downloaded XLSX.

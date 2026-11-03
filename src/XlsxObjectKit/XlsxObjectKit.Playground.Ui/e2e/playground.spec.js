@@ -1,6 +1,46 @@
 import { test, expect } from '@playwright/test';
 import { readFile } from 'node:fs/promises';
 
+test('inspector selects stored cell types and preserves text and booleans during editing', async ({ page, request }) => {
+  const created = await request.post('/api/documents/new');
+  const prepared = await request.post('/api/documents/edit', { multipart: {
+    file: { name: 'types.xlsx', mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', buffer: await created.body() },
+    edit: JSON.stringify({ action: 'cells', sheetId: '1', cells: [
+      { address: 'A1', value: '00123', type: 'text' },
+      { address: 'A2', value: '0', type: 'number' },
+      { address: 'A3', value: 'true', type: 'boolean' },
+      { address: 'A4', value: '="text result"', type: 'formula' },
+      { address: 'A5', value: '=1/0', type: 'formula' }
+    ] })
+  } });
+  expect(prepared.ok()).toBeTruthy();
+  await page.goto('/');
+  await page.getByLabel('Open XLSX', { exact: true }).setInputFiles({ name: 'types.xlsx', mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', buffer: await prepared.body() });
+  const type = page.getByRole('combobox', { name: 'Value type', exact: true });
+  for (const [address, expected] of [['A1', 'text'], ['A2', 'number'], ['A3', 'boolean'], ['A4', 'formula'], ['A5', 'formula'], ['A6', 'auto']]) {
+    await page.getByRole('gridcell', { name: address, exact: true }).click();
+    await expect(type).toHaveValue(expected);
+  }
+  await page.getByRole('gridcell', { name: 'A1', exact: true }).click();
+  await page.getByRole('textbox', { name: 'Formula bar' }).fill('00456');
+  await page.getByRole('button', { name: 'Apply cell value' }).click();
+  await expect(page.getByRole('gridcell', { name: 'A1', exact: true })).toHaveText('00456');
+  await page.getByRole('gridcell', { name: 'A1', exact: true }).dblclick();
+  await page.getByRole('textbox', { name: 'Edit A1', exact: true }).fill('00789');
+  await page.getByRole('textbox', { name: 'Edit A1', exact: true }).press('Enter');
+  await expect(page.getByRole('gridcell', { name: 'A1', exact: true })).toHaveText('00789');
+  await page.getByRole('gridcell', { name: 'A3', exact: true }).dblclick();
+  await expect(page.getByRole('textbox', { name: 'Edit A3', exact: true })).toHaveValue('true');
+  await page.getByRole('textbox', { name: 'Edit A3', exact: true }).fill('false');
+  await page.getByRole('textbox', { name: 'Edit A3', exact: true }).press('Enter');
+  await expect(page.getByRole('gridcell', { name: 'A3', exact: true })).toHaveText('FALSE');
+  await expect(type).toHaveValue('boolean');
+  await page.getByRole('gridcell', { name: 'A3', exact: true }).click();
+  await page.getByRole('grid').press('Delete');
+  await expect(type).toHaveValue('auto');
+  await expect(page.getByRole('gridcell', { name: 'A3', exact: true })).toHaveText('');
+});
+
 test('always keeps a default upload tab', async ({ page }) => {
   await page.goto('/');
   await expect(page.getByRole('tab')).toHaveCount(1);
@@ -65,6 +105,7 @@ test('create, edit, format, manage worksheets, download and preserve separate ta
   await page.getByRole('textbox', { name: 'Worksheet name' }).fill('Notes');
   await page.getByRole('button', { name: 'Save worksheet' }).click();
   await expect(page.locator('.sheets-panel').getByRole('button', { name: 'Notes', exact: true })).toBeVisible();
+  await page.getByRole('combobox', { name: 'Value type', exact: true }).selectOption('formula');
   await page.getByRole('textbox', { name: 'Formula bar' }).fill('=1+2');
   await page.getByRole('button', { name: 'Apply cell value' }).click();
   await expect(a1).toHaveText('3');

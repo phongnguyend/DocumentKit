@@ -4,7 +4,7 @@ import { Calculator, Download, FolderOpen, Sheet as SheetIcon, Plus, X, Save, Tr
 import { Modal } from './components/Modal';
 import { ToolbarMenu } from './components/ToolbarMenu';
 import { CellGrid } from './components/CellGrid';
-import { address, defaultStyle, inspect, parse, post, type Snapshot, type Style } from './types';
+import { address, cellValueType, cellEditValue, defaultStyle, inspect, parse, post, type Snapshot, type Style } from './types';
 import './base.css';
 import './style.css';
 
@@ -29,9 +29,10 @@ function Workbook({ tab, onDirty, onBusy }: { tab: Tab & { initial: Snapshot }; 
   const sheet = snapshot.info.sheets.find(item => item.id === sheetId) ?? snapshot.info.sheets.find(item => !item.hidden)!;
   const cell = sheet.cells.find(item => item.address === selected);
   const [row, column] = parse(selected);
+  const canEditValue = type !== 'date' && type !== 'error';
   useEffect(() => {
-    setValue(cell?.formula != null ? '=' + cell.formula : cell?.type === 'b' ? cell.value === '1' ? 'true' : 'false' : cell?.value ?? '');
-    setType('auto');
+    setValue(cellEditValue(cell));
+    setType(cellValueType(cell));
     setFormat(snapshot.info.styles[cell?.style ?? 0] ?? defaultStyle);
     setGo(selected);
     setRowHeight(sheet.rowHeights[row] ?? sheet.defaultRowHeight ?? 15);
@@ -72,7 +73,7 @@ function Workbook({ tab, onDirty, onBusy }: { tab: Tab & { initial: Snapshot }; 
     }
   }
   function cellEdit(text: string, at = selected, inputType = 'auto') {
-    const kind = inputType !== 'auto' ? inputType : text === '' ? 'clear' : text.startsWith('=') ? 'formula' : /^(true|false)$/i.test(text) ? 'boolean' : /^-?(?:\d+\.?\d*|\.\d+)(?:e[+-]?\d+)?$/i.test(text) ? 'number' : 'text';
+    const kind = text === '' ? 'clear' : inputType !== 'auto' ? inputType : text.startsWith('=') ? 'formula' : /^(true|false)$/i.test(text) ? 'boolean' : /^-?(?:\d+\.?\d*|\.\d+)(?:e[+-]?\d+)?$/i.test(text) ? 'number' : 'text';
     return { address: at, value: text, type: kind };
   }
   function paste(text: string) {
@@ -144,18 +145,19 @@ function Workbook({ tab, onDirty, onBusy }: { tab: Tab & { initial: Snapshot }; 
                 setError(String(cause));
               }
             }
-          }} /><span className="fx">fx</span><input aria-label="Formula bar" value={value} disabled={busy} onChange={event => setValue(event.target.value)} /><button disabled={busy} type="submit" title="Apply cell value" aria-label="Apply cell value"><Save size={16} /></button>
+          }} /><span className="fx">fx</span><input aria-label="Formula bar" value={value} disabled={busy || !canEditValue} onChange={event => setValue(event.target.value)} /><button disabled={busy || !canEditValue} type="submit" title="Apply cell value" aria-label="Apply cell value"><Save size={16} /></button>
         </form>
-        <CellGrid date1904={snapshot.info.date1904} sheet={sheet} styles={snapshot.info.styles} selected={selected} onSelect={setSelected} busy={busy} onEdit={text => void edit({ action: 'cells', cells: [cellEdit(text)] })} onPaste={paste} />
+        <CellGrid date1904={snapshot.info.date1904} sheet={sheet} styles={snapshot.info.styles} selected={selected} onSelect={setSelected} busy={busy} canEditValue={canEditValue} onEdit={text => void edit({ action: 'cells', cells: [cellEdit(text, selected, type)] })} onPaste={paste} />
         <div className="sheet-status"><select className="mobile-sheet-select" aria-label="Current worksheet" value={sheet.id} disabled={busy} onChange={event => {
           setSheetId(event.target.value);
           setSelected('A1');
         }}>{snapshot.info.sheets.filter(item => !item.hidden).map(item => <option key={item.id} value={item.id}>{item.name}</option>)}</select><span>{sheet.name} · {selected}</span><span>{busy ? 'Saving changes…' : 'Double-click to edit · Enter to save · Escape to cancel · Paste tab-separated cells'}</span></div>
       </main>
       <aside className="inspector"><h2>Inspector <small>CELL</small></h2><div className="cell-summary"><SheetIcon size={20} /><strong>{selected}</strong><span>{sheet.name}</span></div>
-        <label>Value type<select value={type} disabled={busy} onChange={event => setType(event.target.value)}><option value="auto">Automatic</option><option value="text">Text</option><option value="number">Number</option><option value="boolean">Boolean</option><option value="formula">Formula</option></select></label>
-        <label>Value or formula<textarea value={value} disabled={busy} onChange={event => setValue(event.target.value)} rows={4} /></label>
-        <button className="primary" disabled={busy} onClick={() => void edit({ action: 'cells', cells: [cellEdit(value, selected, type)] })}><Save size={16} />Apply value</button>
+        <label>Value type<select value={type} disabled={busy} onChange={event => setType(event.target.value)}><option value="auto">Automatic</option><option value="text">Text</option><option value="number">Number</option><option value="boolean">Boolean</option><option value="formula">Formula</option>{type === 'date' && <option value="date" disabled>Date (read-only)</option>}{type === 'error' && <option value="error" disabled>Error (read-only)</option>}</select></label>
+        <label>Value or formula<textarea value={value} disabled={busy || !canEditValue} onChange={event => setValue(event.target.value)} rows={4} /></label>
+        <button className="primary" disabled={busy || !canEditValue} onClick={() => void edit({ action: 'cells', cells: [cellEdit(value, selected, type)] })}><Save size={16} />Apply value</button>
+        {!canEditValue && <p className="help">Choose a supported value type to replace this value, or press Delete in the grid to clear it.</p>}
         {cell?.formula != null && <p className="help">{cell.hasCachedValue ? 'Calculated result: ' + (cell.type === 'b' ? cell.value === '1' ? 'TRUE' : 'FALSE' : cell.value || '(empty text)') : 'No calculated result. Recalculate and check Workbook notes for unsupported formulas or circular references.'}</p>}
         <section className="format-editor"><h2>Formatting</h2><div className="format-toggles"><button aria-label="Bold" aria-pressed={format.bold} onClick={() => setFormat({ ...format, bold: !format.bold })}><Bold size={16} /></button><button aria-label="Italic" aria-pressed={format.italic} onClick={() => setFormat({ ...format, italic: !format.italic })}><Italic size={16} /></button></div>
           <label>Text color<input type="color" value={format.color} onChange={event => setFormat({ ...format, color: event.target.value })} /></label><label>Background<input type="color" value={format.background} onChange={event => setFormat({ ...format, background: event.target.value })} /></label>

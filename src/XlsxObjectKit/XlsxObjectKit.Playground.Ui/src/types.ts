@@ -9,6 +9,21 @@ export type Sheet = { id: string; name: string; hidden: boolean; cells: Cell[]; 
 export type Inspection = { sheets: Sheet[]; styles: Style[]; warnings: string[]; date1904?: boolean };
 export type Snapshot = { bytes: Blob; info: Inspection };
 export const defaultStyle: Style = { bold: false, italic: false, color: '#24334a', background: '#ffffff', alignment: 'left' };
+export function cellValueType(cell?: Cell): string {
+  if (cell?.formula != null) {
+    return 'formula';
+  }
+  if (!cell || (cell.type === 'n' && cell.value === '')) {
+    return 'auto';
+  }
+  return ({ n: 'number', b: 'boolean', s: 'text', inlineStr: 'text', str: 'text', d: 'date', e: 'error' } as Record<string, string>)[cell.type] ?? 'auto';
+}
+export function cellEditValue(cell?: Cell): string {
+  if (cell?.formula != null) {
+    return '=' + cell.formula;
+  }
+  return cell?.type === 'b' ? cell.value === '1' ? 'true' : 'false' : cell?.value ?? '';
+}
 export function address(row: number, column: number) {
   let text = '';
   while (column > 0) {
