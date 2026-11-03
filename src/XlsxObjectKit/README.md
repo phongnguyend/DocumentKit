@@ -36,7 +36,8 @@ It supports a documented formula subset, rather than full Excel compatibility.
 - Edits recalculate supported formulas and their dependencies automatically.
   **Recalculate** refreshes cached results in uploaded workbooks. Formula expressions
   remain editable and calculated values are saved in the downloaded XLSX.
-- Copy the selected value and paste tab-separated rows/columns (up to 10,000 cells).
+- Drag across cells to select a rectangular range in the current grid window. The outline and status show its address and cell count. Copy exports tab-separated values; Delete clears the range in one undoable edit (up to 10,000 cells). Click a cell, use arrow keys, or press Escape to leave the range. Editing and Inspector formatting still target the active cell.
+- Paste tab-separated rows/columns starting at the active cell (up to 10,000 cells).
 - Apply bold, italic, text/background colors and alignment. Existing font size,
   number format and border definitions are preserved when applying these controls.
 - Render font family/size, underline and strikethrough, solid fills, theme/indexed
@@ -219,7 +220,7 @@ runs browser tests, and builds the Compose images.
   back to stored values; locale-specific formats can differ from Excel. Wrapped
   and rotated text uses the stored row/column dimensions and can be clipped.
   Merged ranges crossing the current virtual window are not fully represented.
-- Range selection, row/column insertion/deletion, image OCR,
+- Row/column insertion/deletion, image OCR,
   Markdown and native PDF export are future extensions. They are not provided by
   this first implementation.
 - Limits: 50 MB uploaded ZIP, 128 MB expanded, 32 MB per part, 10,000 parts,

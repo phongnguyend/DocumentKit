@@ -85,3 +85,8 @@ input:focus-visible, select:focus-visible { outline: 2px solid #8bb3ff; outline-
 .image-inspector-actions { display: flex; flex-direction: column; gap: 8px; }
 .image-bounds { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 .image-source-controls { border: 0; padding: 0; min-width: 0; }
+
+.cell-grid { user-select: none; touch-action: none; }
+.cell-grid input { user-select: text; touch-action: auto; }
+.selected-range { position: absolute; pointer-events: none; border: 2px solid #386cdc; background: #386cdc20; z-index: 4; }
+.range-selection-status { position: sticky; bottom: 8px; left: 60px; display: table; padding: 4px 8px; border-radius: 5px; background: #edf3ff; color: #234b92; font-size: 11px; pointer-events: none; z-index: 9; }

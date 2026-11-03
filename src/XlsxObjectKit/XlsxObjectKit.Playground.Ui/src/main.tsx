@@ -205,7 +205,13 @@ function Workbook({ tab, onDirty, onBusy }: { tab: Tab & { initial: Snapshot }; 
             }
           }} /><span className="fx">fx</span><input aria-label="Formula bar" value={value} disabled={busy || !canEditValue} onChange={event => setValue(event.target.value)} /><button disabled={busy || !canEditValue} type="submit" title="Apply cell value" aria-label="Apply cell value"><Save size={16} /></button>
         </form>
-        <CellGrid date1904={snapshot.info.date1904} sheet={sheet} styles={snapshot.info.styles} selected={selected} onSelect={value => {
+        <CellGrid onClearRange={addresses => {
+          if (addresses.length > 10000) {
+            setError('Clear up to 10,000 cells at a time.');
+            return;
+          }
+          void edit({ action: 'cells', cells: addresses.map(address => ({ address, value: '', type: 'clear' })) });
+        }} date1904={snapshot.info.date1904} sheet={sheet} styles={snapshot.info.styles} selected={selected} onSelect={value => {
           setSelected(value);
           setSelectedImage(undefined);
         }} selectedImage={selectedImage} onSelectImage={id => {

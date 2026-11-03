@@ -4,7 +4,8 @@ import { columnPosition, rowPosition } from '../types';
 import { cellAppearance, displayValue, textAppearance } from '../formatting';
 import { address, cellEditValue, defaultStyle, parse, type Sheet, type Style } from '../types';
 
-export function CellGrid({ sheet, styles, selected, onSelect, onEdit, onPaste, busy, date1904, canEditValue = true, onPaint, paintSource, selectedImage, onSelectImage, onImageEdit }: {
+export function CellGrid({ sheet, styles, selected, onSelect, onEdit, onPaste, busy, date1904, canEditValue = true, onPaint, paintSource, selectedImage, onSelectImage, onImageEdit, onClearRange }: {
+  onClearRange?: (addresses: string[]) => void;
   selectedImage?: string; onSelectImage?: (id: string) => void; onImageEdit?: (id: string, action: string, bounds?: object) => void;
   sheet: Sheet; styles: Style[]; selected: string; onSelect: (value: string) => void;
   onEdit: (value: string) => void; onPaste: (value: string) => void; busy: boolean; date1904?: boolean; canEditValue?: boolean; onPaint?: (addresses: string[]) => void; paintSource?: string;
@@ -13,6 +14,7 @@ export function CellGrid({ sheet, styles, selected, onSelect, onEdit, onPaste, b
   const [viewportHeight, setViewportHeight] = useState(700);
   const [editing, setEditing] = useState<string | null>(null);
   const [paintRange, setPaintRange] = useState<{ start: [number, number]; end: [number, number] } | null>(null);
+  const [selection, setSelection] = useState<typeof paintRange>(null);
   const drag = useRef<typeof paintRange>(null);
   const suppressClick = useRef(false);
   const host = useRef<HTMLDivElement>(null);
@@ -60,6 +62,12 @@ export function CellGrid({ sheet, styles, selected, onSelect, onEdit, onPaste, b
     }
   }, [selected, sheet.id]);
 
+  useEffect(() => {
+    setSelection(current => current && address(...current.start) === selected && !selectedImage ? current : null);
+  }, [selected, selectedImage]);
+  useEffect(() => {
+    setSelection(null);
+  }, [sheet.id, !!onPaint]);
   function cancelDrag() {
     drag.current = null;
     setPaintRange(null);
@@ -71,6 +79,7 @@ export function CellGrid({ sheet, styles, selected, onSelect, onEdit, onPaste, b
     function escape(event: KeyboardEvent) {
       if (event.key === 'Escape') {
         cancelDrag();
+        setSelection(null);
       }
     }
     window.addEventListener('keydown', escape);
@@ -89,23 +98,48 @@ export function CellGrid({ sheet, styles, selected, onSelect, onEdit, onPaste, b
     drag.current = { ...drag.current, end: [base + ri + 1, column] };
     setPaintRange(drag.current);
   }
-  const rangeTop = paintRange ? Math.min(paintRange.start[0], paintRange.end[0]) : 0;
-  const rangeBottom = paintRange ? Math.max(paintRange.start[0], paintRange.end[0]) : 0;
-  const rangeLeft = paintRange ? Math.min(paintRange.start[1], paintRange.end[1]) : 0;
-  const rangeRight = paintRange ? Math.max(paintRange.start[1], paintRange.end[1]) : 0;
+  function boundsOf(range: NonNullable<typeof paintRange>) {
+    let top = Math.min(range.start[0], range.end[0]);
+    let bottom = Math.max(range.start[0], range.end[0]);
+    let left = Math.min(range.start[1], range.end[1]);
+    let right = Math.max(range.start[1], range.end[1]);
+    let changed = true;
+    while (changed) {
+      changed = false;
+      for (const merge of merges) {
+        if (merge.first[0] <= bottom && merge.last[0] >= top && merge.first[1] <= right && merge.last[1] >= left) {
+          const next = [Math.min(top, merge.first[0]), Math.max(bottom, merge.last[0]), Math.min(left, merge.first[1]), Math.max(right, merge.last[1])];
+          if (next[0] !== top || next[1] !== bottom || next[2] !== left || next[3] !== right) {
+            [top, bottom, left, right] = next;
+            changed = true;
+          }
+        }
+      }
+    }
+    return { top, bottom, left, right };
+  }
+  const visibleRange = paintRange ?? selection;
+  const { top: rangeTop, bottom: rangeBottom, left: rangeLeft, right: rangeRight } = visibleRange ? boundsOf(visibleRange) : { top: 0, bottom: 0, left: 0, right: 0 };
 
   return <div className={'cell-grid' + (onPaint ? ' painting' : '')} ref={host} role="grid" aria-label={sheet.name + ' cells'} aria-rowcount={1048576} aria-colcount={16384} tabIndex={0}
     onPointerMove={event => updateDrag(event.clientX, event.clientY)}
     onPointerCancel={cancelDrag} onLostPointerCapture={cancelDrag}
     onPointerUp={event => {
-      if (!drag.current || !onPaint || busy) {
+      if (!drag.current || busy) {
         return;
       }
       updateDrag(event.clientX, event.clientY);
       const range = drag.current;
+      if (!onPaint) {
+        cancelDrag();
+        setSelection(range);
+        onSelect(address(...range.start));
+        return;
+      }
       const targets: string[] = [];
-      for (let row = Math.min(range.start[0], range.end[0]); row <= Math.max(range.start[0], range.end[0]) && targets.length <= 10000; row++) {
-        for (let column = Math.min(range.start[1], range.end[1]); column <= Math.max(range.start[1], range.end[1]) && targets.length <= 10000; column++) {
+      const expanded = boundsOf(range);
+      for (let row = expanded.top; row <= expanded.bottom && targets.length <= 10000; row++) {
+        for (let column = expanded.left; column <= expanded.right && targets.length <= 10000; column++) {
           const merge = merges.find(item => row >= item.first[0] && row <= item.last[0] && column >= item.first[1] && column <= item.last[1]);
           if (!merge || (row === merge.first[0] && column === merge.first[1])) {
             targets.push(address(row, column));
@@ -124,7 +158,20 @@ export function CellGrid({ sheet, styles, selected, onSelect, onEdit, onPaste, b
       if (editing !== null) {
         return;
       }
-      event.clipboardData.setData('text/plain', cells.get(selected)?.value ?? '');
+      if (selection && (rangeBottom - rangeTop + 1) * (rangeRight - rangeLeft + 1) <= 10000) {
+        const rows: string[] = [];
+        for (let row = rangeTop; row <= rangeBottom; row++) {
+          const values: string[] = [];
+          for (let column = rangeLeft; column <= rangeRight; column++) {
+            const value = cells.get(address(row, column))?.value ?? '';
+            values.push(/[\t\n\r"]/.test(value) ? '"' + value.replaceAll('"', '""') + '"' : value);
+          }
+          rows.push(values.join('\t'));
+        }
+        event.clipboardData.setData('text/plain', rows.join('\n'));
+      } else if (!selection) {
+        event.clipboardData.setData('text/plain', cells.get(selected)?.value ?? '');
+      }
       event.preventDefault();
     }} onPaste={event => {
       if (busy || editing !== null || onPaint) {
@@ -138,6 +185,7 @@ export function CellGrid({ sheet, styles, selected, onSelect, onEdit, onPaste, b
       }
       const delta = { ArrowDown: [1, 0], ArrowUp: [-1, 0], ArrowRight: [0, 1], ArrowLeft: [0, -1] }[event.key];
       if (delta) {
+        setSelection(null);
         event.preventDefault();
         onSelect(address(Math.max(1, Math.min(1048576, selectedRow + delta[0])), Math.max(1, Math.min(16384, selectedColumn + delta[1]))));
       } else if (onPaint && event.key === 'Enter') {
@@ -149,11 +197,24 @@ export function CellGrid({ sheet, styles, selected, onSelect, onEdit, onPaste, b
         setEditing(cellEditValue(cell));
       } else if (!onPaint && event.key === 'Delete') {
         event.preventDefault();
-        onEdit('');
+        if (selection && onClearRange) {
+          const targets: string[] = [];
+          for (let row = rangeTop; row <= rangeBottom && targets.length <= 10000; row++) {
+            for (let column = rangeLeft; column <= rangeRight && targets.length <= 10000; column++) {
+              const merge = merges.find(item => row >= item.first[0] && row <= item.last[0] && column >= item.first[1] && column <= item.last[1]);
+              if (!merge || (row === merge.first[0] && column === merge.first[1])) {
+                targets.push(address(row, column));
+              }
+            }
+          }
+          onClearRange(targets);
+        } else {
+          onEdit('');
+        }
       }
     }}>
     <div className="grid-surface" style={{ width: x.at(-1), height: y.at(-1) }}>
-      {paintRange && <div className="paint-range" aria-hidden="true" style={{ left: x[rangeLeft - firstColumn], top: y[rangeTop - base - 1], width: x[rangeRight - firstColumn + 1] - x[rangeLeft - firstColumn], height: y[rangeBottom - base] - y[rangeTop - base - 1] }} />}
+      {visibleRange && <div className={onPaint ? "paint-range" : "selected-range"} aria-hidden="true" style={{ left: x[Math.max(0, rangeLeft - firstColumn)], top: y[Math.max(0, rangeTop - base - 1)], width: x[Math.min(columns.length, rangeRight - firstColumn + 1)] - x[Math.max(0, rangeLeft - firstColumn)], height: y[Math.min(count, rangeBottom - base)] - y[Math.max(0, rangeTop - base - 1)] }} />}
       <div className="column-headings" role="row" style={{ width: x.at(-1) }}><div className="corner" />{columns.map((column, i) => <div role="columnheader" key={column} style={{ left: x[i], width: widths[i] }}>{address(1, column).replace('1', '')}</div>)}</div>
       {Array.from({ length: end - start }, (_, i) => i + start).map(index => <div key={index} role="row" aria-rowindex={base + index + 1}>
         <div className="row-heading" role="rowheader" style={{ top: y[index], height: y[index + 1] - y[index] }}>{base + index + 1}</div>
@@ -168,17 +229,21 @@ export function CellGrid({ sheet, styles, selected, onSelect, onEdit, onPaste, b
           const style = styles[cell?.style ?? sheet.rowStyles?.[row] ?? sheet.columnStyles?.[column] ?? 0] ?? defaultStyle;
           const width = merge ? x[Math.min(columns.length, merge.last[1] - firstColumn + 1)] - x[ci] : widths[ci];
           const height = merge ? y[Math.min(count, merge.last[0] - base)] - y[index] : y[index + 1] - y[index];
-          return <div key={column} role="gridcell" aria-label={key} aria-selected={selected === key} aria-colindex={column}
-            className={'grid-cell' + (selected === key ? ' selected' : '') + (paintSource === key ? ' paint-source' : '')} style={{ top: y[index], left: x[ci], width, height, ...cellAppearance(style, cell) }}
+          return <div key={column} role="gridcell" aria-label={key} aria-selected={visibleRange ? row >= rangeTop && row <= rangeBottom && column >= rangeLeft && column <= rangeRight : selected === key} aria-colindex={column}
+            className={'grid-cell' + (selected === key && !visibleRange ? ' selected' : '') + (paintSource === key ? ' paint-source' : '')} style={{ top: y[index], left: x[ci], width, height, ...cellAppearance(style, cell) }}
             onPointerDown={event => {
               suppressClick.current = false;
-              if (onPaint && !busy && event.button === 0) {
+              if (!busy && event.button === 0 && !(event.target instanceof HTMLInputElement)) {
                 event.preventDefault();
                 suppressClick.current = true;
                 drag.current = { start: [row, column], end: [row, column] };
                 setPaintRange(drag.current);
                 host.current?.focus();
-                host.current?.setPointerCapture(event.pointerId);
+                if (onPaint) {
+                  host.current?.setPointerCapture(event.pointerId);
+                } else {
+                  event.currentTarget.setPointerCapture(event.pointerId);
+                }
               }
             }}
             onClick={() => {
@@ -196,6 +261,7 @@ export function CellGrid({ sheet, styles, selected, onSelect, onEdit, onPaste, b
               }
             }} onDoubleClick={() => {
               if (!busy && canEditValue) {
+                setSelection(null);
                 onSelect(key);
                 setEditing(cellEditValue(cell));
               }
@@ -219,5 +285,6 @@ export function CellGrid({ sheet, styles, selected, onSelect, onEdit, onPaste, b
         offsetX={48 - columnPosition(sheet, firstColumn)} offsetY={32 - rowPosition(sheet, base + 1)}
         onSelect={() => onSelectImage?.(image.id)} onSave={bounds => onImageEdit?.(image.id, 'transform-image', bounds)} onDelete={() => onImageEdit?.(image.id, 'delete-image')} />)}
     </div>
+    {selection && !onPaint && <span className="range-selection-status" role="status">{address(rangeTop, rangeLeft)}:{address(rangeBottom, rangeRight)} - {(rangeBottom - rangeTop + 1) * (rangeRight - rangeLeft + 1)} cells{(rangeBottom - rangeTop + 1) * (rangeRight - rangeLeft + 1) > 10000 ? ' (copy/clear limit: 10,000)' : ''}</span>}
   </div>;
 }
