@@ -7,6 +7,11 @@ import { CellGrid } from './components/CellGrid';
 import { address, cellValueType, cellEditValue, defaultStyle, inspect, parse, post, type Snapshot, type Style } from './types';
 import './base.css';
 import './style.css';
+import './theme.css';
+import { ThemeSwitcher } from './components/ThemeSwitcher';
+import { applyTheme, readTheme } from './theme';
+
+applyTheme(readTheme());
 
 type Tab = { id: number; name: string; initial: Snapshot | null; dirty: boolean };
 
@@ -299,7 +304,7 @@ function App() {
       void open(event.dataTransfer.files);
     }
   }}>
-    <header className="application-header"><div className="brand"><SheetIcon size={30} /><div><strong>XlsxObjectKit</strong><small>OBJECT PLAYGROUND</small></div></div><div className="header-actions"><button disabled={busy} onClick={() => void open()}><Plus size={16} />New workbook</button><label className="upload-button"><FolderOpen size={16} />Open XLSX<input aria-label="Open XLSX" type="file" accept=".xlsx" multiple disabled={busy} onChange={event => {
+    <header className="application-header"><div className="brand"><SheetIcon size={30} /><div><strong>XlsxObjectKit</strong><small>OBJECT PLAYGROUND</small></div></div><div className="header-actions"><ThemeSwitcher /><button disabled={busy} onClick={() => void open()}><Plus size={16} />New workbook</button><label className="upload-button"><FolderOpen size={16} />Open XLSX<input aria-label="Open XLSX" type="file" accept=".xlsx" multiple disabled={busy} onChange={event => {
       if (event.target.files?.length) {
         void open(Array.from(event.target.files));
       }

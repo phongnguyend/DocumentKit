@@ -8,7 +8,8 @@
     "build": "tsc -b && vite build",
     "test:e2e": "playwright test",
     "predev": "node scripts/copy-ocr-assets.mjs",
-    "prebuild": "node scripts/copy-ocr-assets.mjs"
+    "prebuild": "node scripts/copy-ocr-assets.mjs",
+    "test:theme": "playwright test --config playwright.theme.config.js"
   },
   "dependencies": {
     "@tesseract.js-data/eng": "^1.0.0",

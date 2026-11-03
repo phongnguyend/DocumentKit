@@ -12,6 +12,12 @@ Document libraries, conversion services, CLIs, and browser playgrounds built wit
 - [WordToPdf](src/WordToPdf/README.md): convert Word documents to PDF using LibreOffice or the native DocxObjectKit engine.
 - [PowerPointToPdf](src/PowerPointToPdf/README.md): convert PowerPoint presentations to PDF using LibreOffice or the native PptxObjectKit engine.
 
+All eight playgrounds offer the same **Light / Dark / System** switcher in the
+header. Preferences persist in browser storage and synchronize across tabs on the
+same origin; separate ports or hosts keep separate preferences. Document previews
+and worksheet cell formatting retain their original colors. Run `npm run test:theme`
+inside a playground directory to check theme behavior without starting its backend.
+
 ## Build workflows
 
 GitHub Actions workflows run on pushes and pull requests matching their configured

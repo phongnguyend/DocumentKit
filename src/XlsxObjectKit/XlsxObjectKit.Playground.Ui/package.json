@@ -6,7 +6,8 @@
   "scripts": {
     "dev": "vite --host localhost",
     "build": "tsc -b && vite build",
-    "test:e2e": "playwright test"
+    "test:e2e": "playwright test",
+    "test:theme": "playwright test --config playwright.theme.config.js"
   },
   "dependencies": {
     "lucide-react": "^1.61.0",

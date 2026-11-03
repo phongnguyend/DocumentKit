@@ -1,6 +1,11 @@
 import { StrictMode, useEffect, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import './style.css';
+import './theme.css';
+import { ThemeSwitcher } from './components/ThemeSwitcher';
+import { applyTheme, readTheme } from './theme';
+
+applyTheme(readTheme());
 
 const engines = [
   { id: 'chrome', name: 'Chrome', description: 'Google Chrome headless' },
@@ -145,7 +150,7 @@ function App() {
 
   return (
     <div className="shell">
-      <header className="topbar"><a href="/" className="brand"><span className="brand-icon">H</span> HTML to PDF</a><span className="badge">PLAYGROUND</span></header>
+      <header className="topbar"><a href="/" className="brand"><span className="brand-icon">H</span> HTML to PDF</a><div className="app-header-actions"><ThemeSwitcher /><span className="badge">PLAYGROUND</span></div></header>
       <main>
         <div className="intro"><p className="eyebrow">FROM BROWSER TO PAPER</p><h1>Your HTML.<br /><span>Ready for print.</span></h1><p>Turn an HTML file or webpage into a downloadable PDF.<br /> Choose one or more rendering engines to compare results.</p></div>
         <form onSubmit={convert} className="workspace" aria-busy={busy} noValidate>

@@ -1,6 +1,11 @@
 import { StrictMode, useEffect, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import './style.css';
+import './theme.css';
+import { ThemeSwitcher } from './components/ThemeSwitcher';
+import { applyTheme, readTheme } from './theme';
+
+applyTheme(readTheme());
 
 const engines = [
   { id: 'libreoffice', name: 'LibreOffice', description: 'Calc spreadsheet to PDF' },
@@ -120,7 +125,7 @@ function App() {
 
   return (
     <div className="shell">
-      <header className="topbar"><a href="/" className="brand"><span className="brand-icon">E</span> Excel to PDF</a><span className="badge">PLAYGROUND</span></header>
+      <header className="topbar"><a href="/" className="brand"><span className="brand-icon">E</span> Excel to PDF</a><div className="app-header-actions"><ThemeSwitcher /><span className="badge">PLAYGROUND</span></div></header>
       <main>
         <div className="intro"><p className="eyebrow">FROM SPREADSHEET TO PDF</p><h1>Your workbook.<br /><span>Ready for print.</span></h1><p>Turn an Excel file into a downloadable PDF.<br /> Convert with LibreOffice, then view or download your PDF.</p></div>
         <form onSubmit={convert} className="workspace" aria-busy={busy}>

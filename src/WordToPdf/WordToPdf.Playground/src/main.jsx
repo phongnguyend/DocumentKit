@@ -1,6 +1,11 @@
 import { StrictMode, useEffect, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import './style.css';
+import './theme.css';
+import { ThemeSwitcher } from './components/ThemeSwitcher';
+import { applyTheme, readTheme } from './theme';
+
+applyTheme(readTheme());
 
 const engines = [
   { id: 'docxobjectkit', name: 'DocxObjectKit', description: 'Native .NET conversion (.docx only, experimental)' },
@@ -124,7 +129,7 @@ function App() {
 
   return (
     <div className="shell">
-      <header className="topbar"><a href="/" className="brand"><span className="brand-icon">W</span> Word to PDF</a><span className="badge">PLAYGROUND</span></header>
+      <header className="topbar"><a href="/" className="brand"><span className="brand-icon">W</span> Word to PDF</a><div className="app-header-actions"><ThemeSwitcher /><span className="badge">PLAYGROUND</span></div></header>
       <main>
         <div className="intro"><p className="eyebrow">FROM DOCUMENT TO PDF</p><h1>Your document.<br /><span>Ready for print.</span></h1><p>Turn a Word file into a downloadable PDF.<br /> Choose LibreOffice or DocxObjectKit, then view or download your PDF.</p></div>
         <form onSubmit={convert} className="workspace" aria-busy={busy}>

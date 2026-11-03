@@ -7,7 +7,8 @@
     "dev": "vite --host localhost",
     "build": "vite build",
     "preview": "vite preview --host localhost",
-    "test:e2e": "playwright test"
+    "test:e2e": "playwright test",
+    "test:theme": "playwright test --config playwright.theme.config.js"
   },
   "dependencies": {
     "react": "^19.2.0",

@@ -1,0 +1,28 @@
+
+:root { color-scheme: light; }
+.app-header-actions { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.theme-switcher { display: inline-flex; flex-shrink: 0; gap: 2px; padding: 3px; background: #eef2f8; border: 1px solid #d7deea; border-radius: 8px; }
+.theme-switcher button { display: grid; place-items: center; width: 33px; height: 33px; padding: 7px; margin: 0; border: 1px solid transparent; border-radius: 5px; background: transparent; color: #536781; cursor: pointer; }
+.theme-switcher button[aria-pressed="true"] { background: #fff; border-color: #b7c9f0; color: #2358d3; }
+.theme-switcher button:focus-visible { outline: 2px solid #4279e8; outline-offset: 2px; }
+:root[data-theme="dark"] { color-scheme: dark; color: #e2e8f0; background: #111827; --theme-panel: #1b2535; --theme-raised: #253247; --theme-border: #3c4c63; --theme-muted: #a6b5cb; --theme-accent: #9fc4ff; }
+html[data-theme="dark"] :is(header, footer, aside, .toolbar, .page-navigation-bar, .slide-navigation-bar, .modal, .toolbar-menu-panel, .document-bar, .formula-bar, .sheet-status, .welcome-card, .dropzone, .settings-panel, .upload-panel) { background: var(--theme-panel); color: #e2e8f0; border-color: var(--theme-border); }
+html[data-theme="dark"] :is(.welcome, .slide-workspace, .page-workspace, .sheet-workspace, .workspace, .document-tabs-bar, .presentation-tabs-bar, .browser-tabs-bar, .document-tabs, .tabs-bar) { background: #111827; color: #e2e8f0; border-color: var(--theme-border); }
+html[data-theme="dark"] :is(button, select, textarea, input:where(:not([type="checkbox"], [type="radio"], [type="range"], [type="color"])), .secondary, .interaction-mode, .document-tab, .theme-switcher, .engine, .badge, .markdown-source, .markdown-preview pre, .markdown-preview th) { background: var(--theme-raised); color: #e2e8f0; border-color: var(--theme-border); }
+html[data-theme="dark"] :is(button:hover:not(:disabled), summary:hover, .toolbar-menu[open] summary, .document-tab:hover) { background: #304461; color: #dbeafe; }
+html[data-theme="dark"] :is(button[aria-pressed="true"], button[aria-current="page"], .document-tab.active, .engine.selected, .dropzone.dragging, .primary, button.primary, .success, .painter-status) { background: #263f63; color: #bfdbfe; border-color: #628cca; }
+html[data-theme="dark"] .document-tab > [role="tab"] { background: transparent; color: #e2e8f0; }
+html[data-theme="dark"] :is(.brand strong, .modal h2, .modal h3, .inspector label, .modal label, .modal legend) { color: #e2e8f0; }
+html[data-theme="dark"] :is(.help, .hint, .subtitle, .quiet, .eyebrow, .brand small, .brand .subtitle, .dropzone p, .dropzone small, .engine small, .intro > p:last-child, .intro h1 span, .inspector small, .cell-summary span, .sheet-status, .document-bar > span) { color: var(--theme-muted); }
+html[data-theme="dark"] :is(.error, .error-banner, .modal [role="alert"]) { background: #44282e; color: #fecaca; }
+html[data-theme="dark"] :is(.inspector, .cell-summary, .format-editor, .engine, .step, .badge, .topbar) { border-color: var(--theme-border); }
+html[data-theme="dark"] .theme-switcher button[aria-pressed="true"] { background: #315581; color: #fff; border-color: #80aff2; box-shadow: inset 0 -2px 0 #80aff2; }
+/* Document surfaces retain their original colors in either app theme. */
+.cell-grid, .page-stage, .slide-stage, .slide-thumbnail { color-scheme: light; }
+html[data-theme="dark"] :is(.column-headings, .column-headings > div, .row-heading, .corner) { background: var(--theme-panel); color: #cbd5e1; border-color: var(--theme-border); }
+html[data-theme="dark"] .grid-cell input { background: white; color: #24334a; }
+@media (max-width: 700px) { header, .topbar { flex-wrap: wrap; height: auto; min-height: 80px; gap: 12px; padding-block: 12px; } .app-header-actions { gap: 8px; } }
+
+html[data-theme="dark"] :is(.url-source, .image-upload, .status, .file-icon, .markdown pre, .markdown th, .feedback > section) { background: var(--theme-raised); color: #e2e8f0; border-color: var(--theme-border); }
+html[data-theme="dark"] :is(.canvas-toolbar, .modal p, .modal small, .modal label, .modal legend) { color: var(--theme-muted); }
+html[data-theme="dark"] .slides-panel .slide-card[aria-current="page"] { background: #263f63; border-color: #628cca; }

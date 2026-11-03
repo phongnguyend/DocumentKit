@@ -13,6 +13,11 @@ import { ImageTransform } from './components/ImageTransform';
 import { ImageSourceDialog } from './components/ImageSourceDialog';
 import { ToolbarMenu } from './components/ToolbarMenu';
 import './style.css';
+import './theme.css';
+import { ThemeSwitcher } from './components/ThemeSwitcher';
+import { applyTheme, readTheme } from './theme';
+
+applyTheme(readTheme());
 
 type Inspection = import('./renderers/docxRenderer').DocxInspection;
 type Snapshot = { bytes: Blob; info: Inspection; deck: Awaited<ReturnType<typeof createDocxPreview>> };
@@ -295,7 +300,7 @@ function DocumentTabs() {
     setClosing(null);
   }
   return <div className="tabbed-playground">
-    <header className="application-header"><div className="brand"><span className="logo">D</span><div><strong>DocxObjectKit</strong><span className="subtitle">OBJECT PLAYGROUND</span></div></div><div className="app-header-actions" ref={setHeaderHost} /></header>
+    <header className="application-header"><div className="brand"><span className="logo">D</span><div><strong>DocxObjectKit</strong><span className="subtitle">OBJECT PLAYGROUND</span></div></div><div className="app-header-actions"><ThemeSwitcher /><div className="app-header-actions" ref={setHeaderHost} /></div></header>
     <div className="document-tabs" role="tablist" aria-label="Documents">
       {tabs.map((tab, index) => <div className={`document-tab ${current.id === tab.id ? 'active' : ''}`} key={tab.id} draggable={!locked} onDragStart={() => setDragged(tab.id)} onDragEnd={() => setDragged(null)} onDragOver={event => event.preventDefault()} onDrop={event => {
         event.preventDefault();
