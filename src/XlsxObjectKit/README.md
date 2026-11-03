@@ -248,3 +248,45 @@ selection includes cells beyond the visible grid window. Merged cells do not exp
 header selections into adjacent rows or columns. Click a cell or press Escape to return to cell selection.
 Delete clears populated cells in the selected rows or columns (up to 10,000 per
 operation), with undo support. Header borders still resize independently.
+
+### Insert rows and columns
+
+Select a cell, range, or row/column headers, then use **Insert > Insert rows
+above/below** or **Insert > Insert columns left/right**. The selected range's
+height or width determines how many rows or columns are inserted (up to 10,000).
+Changes save immediately and support undo/redo.
+
+Insertion shifts cell values and styles, row heights, column widths, merged
+ranges, worksheet ranges, frozen panes, and cell-anchored images. Absolute image
+anchors remain fixed. A1 formula references (including absolute references,
+cross-sheet references, and defined names) update, followed by recalculation of
+supported formulas. Formula string literals remain unchanged. Insertion that
+would push cell content beyond worksheet limits is rejected.
+
+Core API: `XlsxStructureEditor.Insert(document, sheetId, rows: true, position: 2,
+count: 1)`; positions are one-based. The shared application/API/CLI edit actions
+are `insert-rows` and `insert-columns`, with `position` and optional `count`.
+
+Current insertion limitations: protected/signed workbooks, Excel tables, charts,
+pivot tables, external links, shared/array/data-table formulas, structured or 3-D
+references, worksheet extensions, legacy drawings/comments/controls, and shared
+drawing parts are rejected explicitly. New cells are blank; new row dimensions
+use worksheet defaults and column formatting may inherit a spanning column style.
+
+### Delete rows and columns
+
+Select cells or drag across row/column headers, then use **Delete > Delete selected
+rows** or **Delete > Delete selected columns**. Entire rows/columns are removed,
+remaining cells shift up/left, and the change supports undo/redo. Up to 10,000
+rows or columns can be deleted per operation. The keyboard Delete key still
+clears contents without removing rows or columns.
+
+Ranges contract, fully deleted ranges disappear, and formulas referencing deleted
+cells become `#REF!`. Surviving cell styles, row heights, column widths, filters,
+merged ranges, and image anchors are adjusted. Two-cell images whose anchors
+collapse completely are removed; absolute images remain fixed. The same complex
+workbook restrictions listed for insertion apply to deletion.
+
+Core API: `XlsxStructureEditor.Delete(document, sheetId, rows: true, position: 2,
+count: 1)`. Shared application/API/CLI actions: `delete-rows` and `delete-columns`,
+with a one-based `position` and optional `count` (default 1).

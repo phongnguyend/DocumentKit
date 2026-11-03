@@ -82,6 +82,26 @@ function Workbook({ tab, onDirty, onBusy }: { tab: Tab & { initial: Snapshot }; 
     }
   }
 
+  async function insertCells(rows: boolean, after: boolean) {
+    const [first, last = first] = selectedRange.split(':').map(parse);
+    const axis = rows ? 0 : 1;
+    const position = after ? Math.max(first[axis], last[axis]) + 1 : Math.min(first[axis], last[axis]);
+    const count = Math.abs(last[axis] - first[axis]) + 1;
+    if (await edit({ action: rows ? 'insert-rows' : 'insert-columns', position, count })) {
+      setSelected(address(rows ? position : row, rows ? column : position));
+    }
+  }
+
+  async function deleteCells(rows: boolean) {
+    const [first, last = first] = selectedRange.split(':').map(parse);
+    const axis = rows ? 0 : 1;
+    const position = Math.min(first[axis], last[axis]);
+    const count = Math.abs(last[axis] - first[axis]) + 1;
+    if (await edit({ action: rows ? 'delete-rows' : 'delete-columns', position, count })) {
+      setSelected(address(rows ? position : row, rows ? column : position));
+    }
+  }
+
   async function edit(request: object) {
     if (busy) {
       return false;
@@ -175,6 +195,16 @@ function Workbook({ tab, onDirty, onBusy }: { tab: Tab & { initial: Snapshot }; 
         }
       }} onDoubleClick={() => setPainter({ sheetId: sheet.id, address: selected, locked: true })}><Paintbrush size={16} />Format Painter</button>
       <button disabled={busy} onClick={() => void edit({ action: 'recalculate' })}><Calculator size={16} />Recalculate</button>
+      <ToolbarMenu label="Insert" icon={Plus}>
+        <button disabled={busy || !!image || Math.abs(parse(selectedRange.split(':').at(-1)!)[0] - parse(selectedRange.split(':')[0])[0]) >= 10000} onClick={() => void insertCells(true, false)}><Plus size={16} />Insert rows above</button>
+        <button disabled={busy || !!image || Math.abs(parse(selectedRange.split(':').at(-1)!)[0] - parse(selectedRange.split(':')[0])[0]) >= 10000} onClick={() => void insertCells(true, true)}><Plus size={16} />Insert rows below</button>
+        <button disabled={busy || !!image || Math.abs(parse(selectedRange.split(':').at(-1)!)[1] - parse(selectedRange.split(':')[0])[1]) >= 10000} onClick={() => void insertCells(false, false)}><Plus size={16} />Insert columns left</button>
+        <button disabled={busy || !!image || Math.abs(parse(selectedRange.split(':').at(-1)!)[1] - parse(selectedRange.split(':')[0])[1]) >= 10000} onClick={() => void insertCells(false, true)}><Plus size={16} />Insert columns right</button>
+      </ToolbarMenu>
+      <ToolbarMenu label="Delete" icon={Trash2}>
+        <button className="danger" disabled={busy || !!image || Math.abs(parse(selectedRange.split(':').at(-1)!)[0] - parse(selectedRange.split(':')[0])[0]) >= 10000} onClick={() => void deleteCells(true)}><Trash2 size={16} />Delete selected rows</button>
+        <button className="danger" disabled={busy || !!image || Math.abs(parse(selectedRange.split(':').at(-1)!)[1] - parse(selectedRange.split(':')[0])[1]) >= 10000} onClick={() => void deleteCells(false)}><Trash2 size={16} />Delete selected columns</button>
+      </ToolbarMenu>
       <ToolbarMenu label="Worksheet" icon={SheetIcon}>
         <button disabled={busy} onClick={() => openSheetDialog('add-sheet')}><Plus size={16} />Add worksheet</button>
         <button disabled={busy} onClick={() => openSheetDialog('rename-sheet')}><Pencil size={16} />Rename worksheet</button>

@@ -144,6 +144,8 @@ var inheritedStyle = inheritedEdit.Styles[inheritedEdit.Sheets[0].Cells.Single(c
 Check(inheritedStyle.FontSize == 20 && inheritedStyle.WrapText && inheritedStyle.VerticalAlignment == "center", "Formatting edits retain inherited font size and alignment");
 checks += CalculationTests.Run();
 checks += ImageTests.Run();
+checks += StructureTests.Run();
+checks += DeletionTests.Run();
 var resizedRow = XlsxEditor.Dimensions(XlsxEditor.Create(), "1", "B3", 36, 14, resizeColumn: false);
 Check(XlsxWorkbookExtractor.Extract(resizedRow).Sheets[0].RowHeights[3] == 36, "Row-only resizing saves height");
 Check(XlsxWorkbookExtractor.Extract(resizedRow).Sheets[0].ColumnWidths.Count == 0, "Row-only resizing leaves columns unchanged");

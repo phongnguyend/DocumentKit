@@ -38,6 +38,14 @@ internal static class ImageTests
         anchor.ReplaceWith(new XElement(d + "twoCellAnchor", Marker("from", 1, 1), Marker("to", 3, 3), anchor.Element(d + "pic"), new XElement(d + "clientData")));
         var anchored = Picture(document.WithXml(drawingPart, drawing));
         Check(Math.Abs(anchored.X - 64.01) < 0.001 && anchored.Y == 20 && Math.Abs(anchored.Width - 128.02) < 0.001 && anchored.Height == 40, "Two-cell anchors use worksheet dimensions");
+        var shiftedImage = Picture(XlsxStructureEditor.Insert(document.WithXml(drawingPart, drawing), "1", true, 2));
+        Check(shiftedImage.Y == 40 && shiftedImage.Height == 40, "Inserted row moves cell-anchored images");
+        var expandedImage = Picture(XlsxStructureEditor.Insert(document.WithXml(drawingPart, drawing), "1", true, 3));
+        Check(expandedImage.Y == 20 && expandedImage.Height == 60, "Inserted row inside two-cell image expands its anchor");
+        var reducedImage = Picture(XlsxStructureEditor.Delete(document.WithXml(drawingPart, drawing), "1", true, 3));
+        Check(reducedImage.Y == 20 && reducedImage.Height == 20, "Deleted row contracts two-cell image anchor");
+        Check(XlsxWorkbookExtractor.Extract(XlsxStructureEditor.Delete(document.WithXml(drawingPart, drawing), "1", true, 2, 2)).Sheets[0].Images.Count == 0, "Fully collapsed image anchor is removed");
+        Check(Picture(XlsxStructureEditor.Insert(document, "1", true, 1)).Y == 30, "Absolute image anchors remain fixed");
         drawing = document.ReadXml(drawingPart);
         anchor = drawing.Root!.Elements().Single();
         anchor.ReplaceWith(new XElement(d + "oneCellAnchor", Marker("from", 2, 2), anchor.Element(d + "ext"), anchor.Element(d + "pic"), new XElement(d + "clientData")));
