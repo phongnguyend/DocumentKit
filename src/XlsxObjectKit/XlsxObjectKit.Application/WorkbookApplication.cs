@@ -46,6 +46,9 @@ public static class WorkbookApplication
         document = request.Action switch
         {
             "cells" => XlsxEditor.SetCells(document, request.SheetId, request.Cells ?? throw new ArgumentException("Provide cell edits."), request.Format),
+            "resize-row" or "resize-column" => XlsxEditor.Dimensions(document, request.SheetId,
+                request.Cells?.Single().Address ?? throw new ArgumentException("Choose a cell."), request.RowHeight, request.ColumnWidth,
+                resizeRow: request.Action == "resize-row", resizeColumn: request.Action == "resize-column"),
             "dimensions" => XlsxEditor.Dimensions(document, request.SheetId, request.Cells?.Single().Address ?? throw new ArgumentException("Choose a cell."), request.RowHeight, request.ColumnWidth),
             "add-sheet" or "rename-sheet" or "delete-sheet" or "move-sheet" => XlsxEditor.Worksheet(document, request.Action, request.SheetId, request.Name, request.Position),
             "recalculate" => document,
@@ -57,7 +60,7 @@ public static class WorkbookApplication
             _ => throw new ArgumentException("Unknown edit action.")
         };
         XlsxWorkbookExtractor.Extract(document);
-        if (request.Action is "apply-format" or "merge-cells" or "unmerge-cells" || request.Action.EndsWith("-image", StringComparison.Ordinal))
+        if (request.Action is "apply-format" or "resize-row" or "resize-column" or "merge-cells" or "unmerge-cells" || request.Action.EndsWith("-image", StringComparison.Ordinal))
         {
             return new(XlsxWriter.Write(document), []);
         }

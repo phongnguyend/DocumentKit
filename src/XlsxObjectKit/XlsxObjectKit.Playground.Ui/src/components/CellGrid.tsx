@@ -1,10 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { DimensionHandle } from './DimensionHandle';
 import { WorksheetImage } from './WorksheetImage';
 import { columnPosition, rowPosition } from '../types';
 import { cellAppearance, displayValue, textAppearance } from '../formatting';
 import { address, cellEditValue, defaultStyle, parse, type Sheet, type Style } from '../types';
 
-export function CellGrid({ sheet, styles, selected, onSelect, onEdit, onPaste, busy, date1904, canEditValue = true, onPaint, paintSource, selectedImage, onSelectImage, onImageEdit, onClearRange, onRangeChange }: {
+export function CellGrid({ sheet, styles, selected, onSelect, onEdit, onPaste, busy, date1904, canEditValue = true, onPaint, paintSource, selectedImage, onSelectImage, onImageEdit, onClearRange, onRangeChange, onResize }: {
+  onResize?: (axis: 'row' | 'column', cell: string, size: number) => void;
   onRangeChange?: (range: string) => void;
   onClearRange?: (addresses: string[]) => void;
   selectedImage?: string; onSelectImage?: (id: string) => void; onImageEdit?: (id: string, action: string, bounds?: object) => void;
@@ -220,9 +222,9 @@ export function CellGrid({ sheet, styles, selected, onSelect, onEdit, onPaste, b
     }}>
     <div className="grid-surface" style={{ width: x.at(-1), height: y.at(-1) }}>
       {visibleRange && <div className={onPaint ? "paint-range" : "selected-range"} aria-hidden="true" style={{ left: x[Math.max(0, rangeLeft - firstColumn)], top: y[Math.max(0, rangeTop - base - 1)], width: x[Math.min(columns.length, rangeRight - firstColumn + 1)] - x[Math.max(0, rangeLeft - firstColumn)], height: y[Math.min(count, rangeBottom - base)] - y[Math.max(0, rangeTop - base - 1)] }} />}
-      <div className="column-headings" role="row" style={{ width: x.at(-1) }}><div className="corner" />{columns.map((column, i) => <div role="columnheader" key={column} style={{ left: x[i], width: widths[i] }}>{address(1, column).replace('1', '')}</div>)}</div>
+      <div className="column-headings" role="row" style={{ width: x.at(-1) }}><div className="corner" />{columns.map((column, i) => <div role="columnheader" key={column} style={{ left: x[i], width: widths[i] }}>{address(1, column).replace('1', '')}<DimensionHandle axis="column" label={address(1, column).replace('1', '')} size={sheet.columnWidths[column] ?? sheet.defaultColumnWidth ?? 8.43} disabled={busy || !!onPaint} onSave={value => onResize?.('column', address(1, column), value)} /></div>)}</div>
       {Array.from({ length: end - start }, (_, i) => i + start).map(index => <div key={index} role="row" aria-rowindex={base + index + 1}>
-        <div className="row-heading" role="rowheader" style={{ top: y[index], height: y[index + 1] - y[index] }}>{base + index + 1}</div>
+        <div className="row-heading" role="rowheader" style={{ top: y[index], height: y[index + 1] - y[index] }}>{base + index + 1}<DimensionHandle axis="row" label={String(base + index + 1)} size={sheet.rowHeights[base + index + 1] ?? sheet.defaultRowHeight ?? 15} disabled={busy || !!onPaint} onSave={value => onResize?.('row', address(base + index + 1, 1), value)} /></div>
         {columns.map((column, ci) => {
           const row = base + index + 1;
           const key = address(row, column);

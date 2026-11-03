@@ -144,6 +144,14 @@ var inheritedStyle = inheritedEdit.Styles[inheritedEdit.Sheets[0].Cells.Single(c
 Check(inheritedStyle.FontSize == 20 && inheritedStyle.WrapText && inheritedStyle.VerticalAlignment == "center", "Formatting edits retain inherited font size and alignment");
 checks += CalculationTests.Run();
 checks += ImageTests.Run();
+var resizedRow = XlsxEditor.Dimensions(XlsxEditor.Create(), "1", "B3", 36, 14, resizeColumn: false);
+Check(XlsxWorkbookExtractor.Extract(resizedRow).Sheets[0].RowHeights[3] == 36, "Row-only resizing saves height");
+Check(XlsxWorkbookExtractor.Extract(resizedRow).Sheets[0].ColumnWidths.Count == 0, "Row-only resizing leaves columns unchanged");
+var resizedColumn = XlsxEditor.Dimensions(XlsxEditor.Create(), "1", "B3", 21, 24, resizeRow: false);
+Check(XlsxWorkbookExtractor.Extract(resizedColumn).Sheets[0].ColumnWidths[2] == 24, "Column-only resizing saves width");
+Check(XlsxWorkbookExtractor.Extract(resizedColumn).Sheets[0].RowHeights.Count == 0, "Column-only resizing leaves rows unchanged");
+Validate(resizedRow);
+Validate(resizedColumn);
 var mergeSource = XlsxEditor.SetCells(XlsxEditor.Create(), "1", [new("A1", "Title"), new("D1", "Other")]);
 var mergeResult = XlsxEditor.MergeCells(mergeSource, "1", "C2:A1");
 Check(XlsxWorkbookExtractor.Extract(mergeResult).Sheets[0].Merges.SequenceEqual(["A1:C2"]), "Merge normalizes reverse ranges");

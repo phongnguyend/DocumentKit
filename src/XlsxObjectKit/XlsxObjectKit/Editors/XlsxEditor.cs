@@ -449,7 +449,7 @@ public static class XlsxEditor
         return styleId;
     }
 
-    public static XlsxObjectDocument Dimensions(XlsxObjectDocument document, string sheetId, string address, double rowHeight, double columnWidth)
+    public static XlsxObjectDocument Dimensions(XlsxObjectDocument document, string sheetId, string address, double rowHeight, double columnWidth, bool resizeRow = true, bool resizeColumn = true)
     {
         if (!double.IsFinite(rowHeight) || rowHeight < 1 || rowHeight > 409 || !double.IsFinite(columnWidth) || columnWidth < 1 || columnWidth > 255)
         {
@@ -460,54 +460,60 @@ public static class XlsxEditor
         var (rowNumber, column) = CellAddress.Parse(address);
         var xml = document.ReadXml(sheet.Part);
         var data = xml.Root!.Element(S + "sheetData")!;
-        var row = data.Elements(S + "row").FirstOrDefault(item => (int?)item.Attribute("r") == rowNumber);
-        if (row is null)
+        if (resizeRow)
         {
-            row = new XElement(S + "row", new XAttribute("r", rowNumber));
-            var next = data.Elements().FirstOrDefault(item => (int?)item.Attribute("r") > rowNumber);
-            if (next is null)
+            var row = data.Elements(S + "row").FirstOrDefault(item => (int?)item.Attribute("r") == rowNumber);
+            if (row is null)
             {
-                data.Add(row);
+                row = new XElement(S + "row", new XAttribute("r", rowNumber));
+                var next = data.Elements().FirstOrDefault(item => (int?)item.Attribute("r") > rowNumber);
+                if (next is null)
+                {
+                    data.Add(row);
+                }
+                else
+                {
+                    next.AddBeforeSelf(row);
+                }
             }
-            else
-            {
-                next.AddBeforeSelf(row);
-            }
+            row.SetAttributeValue("ht", rowHeight.ToString(CultureInfo.InvariantCulture));
+            row.SetAttributeValue("customHeight", 1);
         }
-        row.SetAttributeValue("ht", rowHeight.ToString(CultureInfo.InvariantCulture));
-        row.SetAttributeValue("customHeight", 1);
-        var cols = xml.Root.Element(S + "cols");
-        if (cols is null)
+        if (resizeColumn)
         {
-            cols = new XElement(S + "cols");
-            data.AddBeforeSelf(cols);
-        }
-        var previous = cols.Elements(S + "col").FirstOrDefault(item => (int?)item.Attribute("min") <= column && (int?)item.Attribute("max") >= column);
-        var replacement = previous is null ? new XElement(S + "col") : new XElement(previous);
-        if (previous is not null)
-        {
-            var min = (int)previous.Attribute("min")!;
-            var max = (int)previous.Attribute("max")!;
-            if (min < column)
+            var cols = xml.Root.Element(S + "cols");
+            if (cols is null)
             {
-                var left = new XElement(previous);
-                left.SetAttributeValue("max", column - 1);
-                previous.AddBeforeSelf(left);
+                cols = new XElement(S + "cols");
+                data.AddBeforeSelf(cols);
             }
-            if (max > column)
+            var previous = cols.Elements(S + "col").FirstOrDefault(item => (int?)item.Attribute("min") <= column && (int?)item.Attribute("max") >= column);
+            var replacement = previous is null ? new XElement(S + "col") : new XElement(previous);
+            if (previous is not null)
             {
-                var right = new XElement(previous);
-                right.SetAttributeValue("min", column + 1);
-                previous.AddAfterSelf(right);
+                var min = (int)previous.Attribute("min")!;
+                var max = (int)previous.Attribute("max")!;
+                if (min < column)
+                {
+                    var left = new XElement(previous);
+                    left.SetAttributeValue("max", column - 1);
+                    previous.AddBeforeSelf(left);
+                }
+                if (max > column)
+                {
+                    var right = new XElement(previous);
+                    right.SetAttributeValue("min", column + 1);
+                    previous.AddAfterSelf(right);
+                }
+                previous.Remove();
             }
-            previous.Remove();
+            replacement.SetAttributeValue("min", column);
+            replacement.SetAttributeValue("max", column);
+            replacement.SetAttributeValue("width", columnWidth.ToString(CultureInfo.InvariantCulture));
+            replacement.SetAttributeValue("customWidth", 1);
+            cols.Add(replacement);
+            cols.ReplaceNodes(cols.Elements().OrderBy(item => (int)item.Attribute("min")!).ToArray());
         }
-        replacement.SetAttributeValue("min", column);
-        replacement.SetAttributeValue("max", column);
-        replacement.SetAttributeValue("width", columnWidth.ToString(CultureInfo.InvariantCulture));
-        replacement.SetAttributeValue("customWidth", 1);
-        cols.Add(replacement);
-        cols.ReplaceNodes(cols.Elements().OrderBy(item => (int)item.Attribute("min")!).ToArray());
         return document.WithXml(sheet.Part, xml);
     }
 

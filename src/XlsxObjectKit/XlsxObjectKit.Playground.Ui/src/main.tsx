@@ -216,7 +216,7 @@ function Workbook({ tab, onDirty, onBusy }: { tab: Tab & { initial: Snapshot }; 
             }
           }} /><span className="fx">fx</span><input aria-label="Formula bar" value={value} disabled={busy || !canEditValue} onChange={event => setValue(event.target.value)} /><button disabled={busy || !canEditValue} type="submit" title="Apply cell value" aria-label="Apply cell value"><Save size={16} /></button>
         </form>
-        <CellGrid onRangeChange={setSelectedRange} onClearRange={addresses => {
+        <CellGrid onResize={(axis, address, size) => void edit({ action: 'resize-' + axis, cells: [{ address, value: '' }], ...(axis === 'row' ? { rowHeight: size } : { columnWidth: size }) })} onRangeChange={setSelectedRange} onClearRange={addresses => {
           if (addresses.length > 10000) {
             setError('Clear up to 10,000 cells at a time.');
             return;

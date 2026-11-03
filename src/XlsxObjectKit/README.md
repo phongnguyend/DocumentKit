@@ -49,6 +49,10 @@ It supports a documented formula subset, rather than full Excel compatibility.
   Both the 1900 and 1904 date systems are respected. The formula bar and cell editor
   retain the original values; display formatting does not change workbook data.
 - Set the selected row's height and column's width in the Inspector.
+- Drag the right edge of a column header or the bottom edge of a row header to
+  resize it. A guide shows the proposed size; release to save as one undoable edit.
+  Escape cancels. Focus a resize handle and use arrow keys for one-unit changes.
+  Resizing a column does not alter row heights, and vice versa.
 - **Format Painter** copies the selected cell's full style to another cell without
   changing values, formulas, cached results, dimensions or merged regions. Click
   once to paint one cell or range, double-click to keep painting, and press Escape to cancel.

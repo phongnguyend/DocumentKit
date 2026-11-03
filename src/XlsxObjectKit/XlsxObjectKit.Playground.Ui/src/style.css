@@ -90,3 +90,14 @@ input:focus-visible, select:focus-visible { outline: 2px solid #8bb3ff; outline-
 .cell-grid input { user-select: text; touch-action: auto; }
 .selected-range { position: absolute; pointer-events: none; border: 2px solid #386cdc; background: #386cdc20; z-index: 4; }
 .range-selection-status { position: sticky; bottom: 8px; left: 60px; display: table; padding: 4px 8px; border-radius: 5px; background: #edf3ff; color: #234b92; font-size: 11px; pointer-events: none; z-index: 9; }
+
+.dimension-handle { position: absolute; z-index: 10; touch-action: none; outline: none; }
+.dimension-handle.column { right: -4px; top: 0; width: 8px; height: 100%; cursor: col-resize; }
+.dimension-handle.row { bottom: -4px; left: 0; width: 100%; height: 8px; cursor: row-resize; }
+.dimension-handle:hover, .dimension-handle:focus-visible { background: #386cdc55; }
+.dimension-handle[aria-disabled="true"] { cursor: default; }
+.dimension-guide { position: absolute; background: #386cdc; pointer-events: none; z-index: 12; }
+.column .dimension-guide { top: 0; width: 2px; height: 100vh; }
+.row .dimension-guide { left: 0; width: 100vw; height: 2px; }
+.dimension-guide > span { position: absolute; top: 6px; left: 8px; padding: 5px 8px; white-space: nowrap; border-radius: 5px; background: #234b92; color: white; font-size: 11px; }
+.column-headings > div:has(.dimension-guide), .row-heading:has(.dimension-guide) { z-index: 11; }
