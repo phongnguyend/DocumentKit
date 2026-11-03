@@ -31,7 +31,7 @@ public static class XlsxEditor
         return new(parts);
     }
 
-    private static void Guard(XlsxObjectDocument document, string? part = null)
+    internal static void Guard(XlsxObjectDocument document, string? part = null)
     {
         if (document.PartNames.Any(name => name.StartsWith("_xmlsignatures/", StringComparison.Ordinal))
             || document.ReadXml("xl/workbook.xml").Descendants(S + "workbookProtection").Any()

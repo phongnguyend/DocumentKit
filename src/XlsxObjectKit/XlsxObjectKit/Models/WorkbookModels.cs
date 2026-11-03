@@ -2,6 +2,8 @@ using System.Text.RegularExpressions;
 
 namespace XlsxObjectKit.Models;
 
+public sealed record XlsxImage(string Id, string Name, string DataUrl, double X, double Y, double Width, double Height, bool Editable);
+
 public sealed record XlsxCell(string Address, string Value, string Type, string? Formula, int Style)
 {
     public bool HasCachedValue { get; init; }
@@ -38,6 +40,8 @@ public sealed record XlsxSheet(string Id, string Name, string Part, bool Hidden,
     public IReadOnlyDictionary<int, int> RowStyles { get; init; } = new Dictionary<int, int>();
 
     public IReadOnlyDictionary<int, int> ColumnStyles { get; init; } = new Dictionary<int, int>();
+
+    public IReadOnlyList<XlsxImage> Images { get; init; } = [];
 
     public double DefaultRowHeight { get; init; } = 15;
 

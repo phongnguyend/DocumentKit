@@ -26,3 +26,5 @@ html[data-theme="dark"] .grid-cell input { background: white; color: #24334a; }
 html[data-theme="dark"] :is(.url-source, .image-upload, .status, .file-icon, .markdown pre, .markdown th, .feedback > section) { background: var(--theme-raised); color: #e2e8f0; border-color: var(--theme-border); }
 html[data-theme="dark"] :is(.canvas-toolbar, .modal p, .modal small, .modal label, .modal legend) { color: var(--theme-muted); }
 html[data-theme="dark"] .slides-panel .slide-card[aria-current="page"] { background: #263f63; border-color: #628cca; }
+
+html[data-theme="dark"] .image-drop-zone { background: var(--theme-raised); color: var(--theme-accent); border-color: var(--theme-border); }

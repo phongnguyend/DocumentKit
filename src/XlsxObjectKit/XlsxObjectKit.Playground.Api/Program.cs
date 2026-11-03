@@ -9,11 +9,12 @@ const string mime = "application/vnd.openxmlformats-officedocument.spreadsheetml
 var builder = WebApplication.CreateBuilder(args);
 builder.WebHost.ConfigureKestrel(options =>
 {
-    options.Limits.MaxRequestBodySize = limit + 1024 * 1024;
+    options.Limits.MaxRequestBodySize = limit + 8 * 1024 * 1024;
 });
 builder.Services.Configure<Microsoft.AspNetCore.Http.Features.FormOptions>(options =>
 {
-    options.MultipartBodyLengthLimit = limit + 1024 * 1024;
+    options.ValueLengthLimit = 8 * 1024 * 1024;
+    options.MultipartBodyLengthLimit = limit + 8 * 1024 * 1024;
 });
 var app = builder.Build();
 app.Use(async (context, next) =>

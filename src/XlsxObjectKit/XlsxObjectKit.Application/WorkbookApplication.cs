@@ -9,13 +9,34 @@ namespace XlsxObjectKit.Application;
 
 public sealed record XlsxEditRequest(string Action, string SheetId, IReadOnlyList<XlsxCellEdit>? Cells = null,
     XlsxFormat? Format = null, string? Name = null, int Position = 0, double RowHeight = 21, double ColumnWidth = 14,
-    string? SourceSheetId = null, string? SourceAddress = null, IReadOnlyList<string>? Addresses = null);
+    string? SourceSheetId = null, string? SourceAddress = null, IReadOnlyList<string>? Addresses = null, string? ImageId = null, string? ImageBase64 = null,
+    double X = 0, double Y = 0, double Width = 240, double Height = 160);
 
 public sealed record XlsxEditResult(byte[] Bytes, IReadOnlyList<string> Warnings);
 
 public static class WorkbookApplication
 {
     public static XlsxWorkbook Inspect(byte[] bytes) => XlsxWorkbookExtractor.Extract(XlsxReader.Read(bytes));
+
+    private static byte[]? DecodeImage(string? value)
+    {
+        if (value is null)
+        {
+            return null;
+        }
+        if (value.Length > 7 * 1024 * 1024)
+        {
+            throw new ArgumentException("Image payload exceeds 5 MB.");
+        }
+        try
+        {
+            return Convert.FromBase64String(value);
+        }
+        catch (FormatException)
+        {
+            throw new ArgumentException("Invalid image payload.");
+        }
+    }
 
     public static byte[] Edit(byte[] bytes, XlsxEditRequest request) => EditWithDiagnostics(bytes, request).Bytes;
 
@@ -28,12 +49,14 @@ public static class WorkbookApplication
             "dimensions" => XlsxEditor.Dimensions(document, request.SheetId, request.Cells?.Single().Address ?? throw new ArgumentException("Choose a cell."), request.RowHeight, request.ColumnWidth),
             "add-sheet" or "rename-sheet" or "delete-sheet" or "move-sheet" => XlsxEditor.Worksheet(document, request.Action, request.SheetId, request.Name, request.Position),
             "recalculate" => document,
+            "add-image" or "replace-image" or "transform-image" or "delete-image" => XlsxImageEditor.Edit(document, request.SheetId, request.Action,
+                request.ImageId, DecodeImage(request.ImageBase64), request.X, request.Y, request.Width, request.Height),
             "apply-format" => XlsxEditor.ApplyFormat(document, request.SourceSheetId ?? throw new ArgumentException("Choose a source worksheet."),
                 request.SourceAddress ?? throw new ArgumentException("Choose a source cell."), request.SheetId, request.Addresses ?? throw new ArgumentException("Choose destination cells.")),
             _ => throw new ArgumentException("Unknown edit action.")
         };
         XlsxWorkbookExtractor.Extract(document);
-        if (request.Action == "apply-format")
+        if (request.Action == "apply-format" || request.Action.EndsWith("-image", StringComparison.Ordinal))
         {
             return new(XlsxWriter.Write(document), []);
         }

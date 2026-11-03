@@ -143,6 +143,7 @@ var inheritedEdit = XlsxWorkbookExtractor.Extract(XlsxEditor.SetCells(Formatting
 var inheritedStyle = inheritedEdit.Styles[inheritedEdit.Sheets[0].Cells.Single(cell => cell.Address == "A4").Style];
 Check(inheritedStyle.FontSize == 20 && inheritedStyle.WrapText && inheritedStyle.VerticalAlignment == "center", "Formatting edits retain inherited font size and alignment");
 checks += CalculationTests.Run();
+checks += ImageTests.Run();
 var paintSource = FormattingFixture.Create();
 var paintXml = paintSource.ReadXml("xl/worksheets/sheet1.xml");
 paintXml.Descendants(S + "row").Single(row => (int?)row.Attribute("r") == 5).AddFirst(new XElement(S + "c", new XAttribute("r", "A5"), new XElement(S + "f", "1+1"), new XElement(S + "v", "777")));

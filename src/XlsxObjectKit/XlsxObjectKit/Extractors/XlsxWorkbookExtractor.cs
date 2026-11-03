@@ -90,7 +90,7 @@ public static class XlsxWorkbookExtractor
         for (var i = 0; i < sheets.Count; i++)
         {
             var sheet = sheets[i];
-            sheets[i] = sheet with { Cells = sheet.Cells.Select(cell =>
+            sheets[i] = sheet with { Images = XlsxImageExtractor.Extract(document, sheet), Cells = sheet.Cells.Select(cell =>
             {
                 var location = CellAddress.Parse(cell.Address);
                 return cell.Style >= 0 ? cell : cell with { Style = sheet.RowStyles.GetValueOrDefault(location.Row, sheet.ColumnStyles.GetValueOrDefault(location.Column, 0)) };
@@ -102,7 +102,7 @@ public static class XlsxWorkbookExtractor
         }
         var pending = sheets.Sum(sheet => sheet.Cells.Count(cell => cell.Formula is not null && !cell.HasCachedValue));
         return new(sheets, styles, [$"Native calculation supports common formulas. {pending} formula(s) have no cached result. Recalculate to refresh uploaded results; unsupported formulas remain unresolved.",
-            "Charts, drawings, conditional formatting, filters and advanced Excel features are preserved in the file but are not rendered. Pattern/gradient fills, rich-text runs and exact Excel font metrics may differ."])
+            "Charts, grouped drawings, conditional formatting, filters and advanced Excel features are preserved in the file but are not rendered. Embedded PNG/JPEG pictures are supported; cropped/rotated pictures may appear differently and cannot be moved in the playground. Pattern/gradient fills, rich-text runs and exact Excel font metrics may differ."])
         {
             Date1904 = (string?)workbook.Root!.Element(S + "workbookPr")?.Attribute("date1904") is "1" or "true"
         };

@@ -1,8 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { WorksheetImage } from './WorksheetImage';
+import { columnPosition, rowPosition } from '../types';
 import { cellAppearance, displayValue, textAppearance } from '../formatting';
 import { address, cellEditValue, defaultStyle, parse, type Sheet, type Style } from '../types';
 
-export function CellGrid({ sheet, styles, selected, onSelect, onEdit, onPaste, busy, date1904, canEditValue = true, onPaint, paintSource }: {
+export function CellGrid({ sheet, styles, selected, onSelect, onEdit, onPaste, busy, date1904, canEditValue = true, onPaint, paintSource, selectedImage, onSelectImage, onImageEdit }: {
+  selectedImage?: string; onSelectImage?: (id: string) => void; onImageEdit?: (id: string, action: string, bounds?: object) => void;
   sheet: Sheet; styles: Style[]; selected: string; onSelect: (value: string) => void;
   onEdit: (value: string) => void; onPaste: (value: string) => void; busy: boolean; date1904?: boolean; canEditValue?: boolean; onPaint?: (addresses: string[]) => void; paintSource?: string;
 }) {
@@ -212,6 +215,9 @@ export function CellGrid({ sheet, styles, selected, onSelect, onEdit, onPaste, b
           </div>;
         })}
       </div>)}
+      {(sheet.images ?? []).map(image => <WorksheetImage key={image.id} image={image} selected={selectedImage === image.id} busy={busy || !!onPaint}
+        offsetX={48 - columnPosition(sheet, firstColumn)} offsetY={32 - rowPosition(sheet, base + 1)}
+        onSelect={() => onSelectImage?.(image.id)} onSave={bounds => onImageEdit?.(image.id, 'transform-image', bounds)} onDelete={() => onImageEdit?.(image.id, 'delete-image')} />)}
     </div>
   </div>;
 }

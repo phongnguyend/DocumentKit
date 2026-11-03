@@ -1,8 +1,10 @@
 import { StrictMode, useEffect, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
-import { Paintbrush, Calculator, Download, FolderOpen, Sheet as SheetIcon, Plus, X, Save, Trash2, Pencil, ArrowUp, ArrowDown, Undo2, Redo2, Bold, Italic } from 'lucide-react';
+import { ImagePlus, Paintbrush, Calculator, Download, FolderOpen, Sheet as SheetIcon, Plus, X, Save, Trash2, Pencil, ArrowUp, ArrowDown, Undo2, Redo2, Bold, Italic } from 'lucide-react';
 import { Modal } from './components/Modal';
 import { ToolbarMenu } from './components/ToolbarMenu';
+import { ImageSourceDialog } from './components/ImageSourceDialog';
+import { columnPosition, rowPosition } from './types';
 import { CellGrid } from './components/CellGrid';
 import { address, cellValueType, cellEditValue, defaultStyle, inspect, parse, post, type Snapshot, type Style } from './types';
 import './base.css';
@@ -29,10 +31,16 @@ function Workbook({ tab, onDirty, onBusy }: { tab: Tab & { initial: Snapshot }; 
   const [error, setError] = useState('');
   const [dialog, setDialog] = useState<string | null>(null);
   const [painter, setPainter] = useState<{ sheetId: string; address: string; locked: boolean } | null>(null);
+  const [selectedImage, setSelectedImage] = useState<string>();
+  const [imageDialog, setImageDialog] = useState<'add' | 'replace' | null>(null);
   const [sheetName, setSheetName] = useState('');
   const [rowHeight, setRowHeight] = useState(21);
   const [columnWidth, setColumnWidth] = useState(14);
   const sheet = snapshot.info.sheets.find(item => item.id === sheetId) ?? snapshot.info.sheets.find(item => !item.hidden)!;
+  const image = sheet.images?.find(item => item.id === selectedImage);
+  useEffect(() => {
+    setSelectedImage(undefined);
+  }, [sheet.id]);
   const cell = sheet.cells.find(item => item.address === selected);
   const [row, column] = parse(selected);
   const canEditValue = type !== 'date' && type !== 'error';
@@ -146,6 +154,10 @@ function Workbook({ tab, onDirty, onBusy }: { tab: Tab & { initial: Snapshot }; 
         setFuture(future.slice(1));
         onDirty(true);
       }}><Redo2 size={16} /></button>
+      <button disabled={busy} onClick={() => {
+        setImageDialog('add');
+        setPainter(null);
+      }}><ImagePlus size={16} />Add image</button>
       <button aria-label="Format Painter" aria-pressed={!!painter} title="Format Painter: click for one cell, double-click to keep painting" disabled={busy} onClick={event => {
         if (event.detail < 2) {
           setPainter(current => current ? null : { sheetId: sheet.id, address: selected, locked: false });
@@ -193,13 +205,26 @@ function Workbook({ tab, onDirty, onBusy }: { tab: Tab & { initial: Snapshot }; 
             }
           }} /><span className="fx">fx</span><input aria-label="Formula bar" value={value} disabled={busy || !canEditValue} onChange={event => setValue(event.target.value)} /><button disabled={busy || !canEditValue} type="submit" title="Apply cell value" aria-label="Apply cell value"><Save size={16} /></button>
         </form>
-        <CellGrid date1904={snapshot.info.date1904} sheet={sheet} styles={snapshot.info.styles} selected={selected} onSelect={setSelected} busy={busy} canEditValue={canEditValue && !painter} onPaint={painter ? destination => void paint(destination) : undefined} paintSource={painter?.sheetId === sheet.id ? painter.address : undefined} onEdit={text => void edit({ action: 'cells', cells: [cellEdit(text, selected, type)] })} onPaste={paste} />
+        <CellGrid date1904={snapshot.info.date1904} sheet={sheet} styles={snapshot.info.styles} selected={selected} onSelect={value => {
+          setSelected(value);
+          setSelectedImage(undefined);
+        }} selectedImage={selectedImage} onSelectImage={id => {
+          setSelectedImage(id);
+          setPainter(null);
+        }} onImageEdit={(imageId, action, bounds) => void edit({ action, imageId, ...bounds })} busy={busy} canEditValue={canEditValue && !painter} onPaint={painter ? destination => void paint(destination) : undefined} paintSource={painter?.sheetId === sheet.id ? painter.address : undefined} onEdit={text => void edit({ action: 'cells', cells: [cellEdit(text, selected, type)] })} onPaste={paste} />
         <div className="sheet-status"><select className="mobile-sheet-select" aria-label="Current worksheet" value={sheet.id} disabled={busy} onChange={event => {
           setSheetId(event.target.value);
           setSelected('A1');
         }}>{snapshot.info.sheets.filter(item => !item.hidden).map(item => <option key={item.id} value={item.id}>{item.name}</option>)}</select><span>{sheet.name} · {selected}</span><span>{busy ? 'Saving changes…' : 'Double-click to edit · Enter to save · Escape to cancel · Paste tab-separated cells'}</span></div>
       </main>
-      <aside className="inspector"><h2>Inspector <small>CELL</small></h2><div className="cell-summary"><SheetIcon size={20} /><strong>{selected}</strong><span>{sheet.name}</span></div>
+      <aside className="inspector">{image ? <><h2>Image <button aria-label="Close image inspector" onClick={() => setSelectedImage(undefined)}><X size={14} /></button></h2><p>{image.name}</p><p className="help">{Math.round(image.width)} x {Math.round(image.height)} px</p>
+        <p className="help">{image.editable ? 'Drag the picture to move it. Drag a handle to resize. Release to save; Escape cancels.' : 'This picture has crop or rotation effects. Its preview is approximate; geometry editing is unavailable.'}</p>
+        <div className="image-inspector-actions"><button disabled={busy} onClick={() => setImageDialog('replace')}><ImagePlus size={16} />Replace image</button><button onClick={() => {
+          const link = document.createElement('a');
+          link.href = image.dataUrl;
+          link.download = image.name + (image.dataUrl.startsWith('data:image/png') ? '.png' : '.jpg');
+          link.click();
+        }}><Download size={16} />Download image</button><button className="danger" disabled={busy} onClick={() => void edit({ action: 'delete-image', imageId: image.id })}><Trash2 size={16} />Delete image</button></div></> : <><h2>Inspector <small>CELL</small></h2><div className="cell-summary"><SheetIcon size={20} /><strong>{selected}</strong><span>{sheet.name}</span></div>
         <label>Value type<select value={type} disabled={busy} onChange={event => setType(event.target.value)}><option value="auto">Automatic</option><option value="text">Text</option><option value="number">Number</option><option value="boolean">Boolean</option><option value="formula">Formula</option>{type === 'date' && <option value="date" disabled>Date (read-only)</option>}{type === 'error' && <option value="error" disabled>Error (read-only)</option>}</select></label>
         <label>Value or formula<textarea value={value} disabled={busy || !canEditValue} onChange={event => setValue(event.target.value)} rows={4} /></label>
         <button className="primary" disabled={busy || !canEditValue} onClick={() => void edit({ action: 'cells', cells: [cellEdit(value, selected, type)] })}><Save size={16} />Apply value</button>
@@ -212,9 +237,10 @@ function Workbook({ tab, onDirty, onBusy }: { tab: Tab & { initial: Snapshot }; 
         </section>
         <section className="format-editor"><h2>Row and column size</h2><label>Row height (pt)<input type="number" min="1" max="409" value={rowHeight} onChange={event => setRowHeight(+event.target.value)} /></label><label>Column width (characters)<input type="number" min="1" max="255" value={columnWidth} onChange={event => setColumnWidth(+event.target.value)} /></label><button disabled={busy} onClick={() => void edit({ action: 'dimensions', cells: [{ address: selected, value: '' }], rowHeight, columnWidth })}><Save size={16} />Apply sizes</button></section>
         <details open={snapshot.info.warnings.some(warning => warning.includes('!'))}><summary>Workbook notes</summary>{snapshot.info.warnings.map(warning => <p className="help" key={warning}>{warning}</p>)}</details>
-      </aside>
+      </>} </aside>
     </div>
     <footer><span>XlsxObjectKit · Native worksheet grid</span><span>Changes stay in this tab. Download to keep your workbook.</span></footer>
+    {imageDialog && <ImageSourceDialog initialBounds={imageDialog === 'replace' && image ? { x: image.x, y: image.y, width: image.width, height: image.height } : { x: columnPosition(sheet, column), y: rowPosition(sheet, row), width: 240, height: 160 }} replacing={imageDialog === 'replace'} onClose={() => setImageDialog(null)} onApply={request => edit({ ...request, action: imageDialog === 'replace' ? 'replace-image' : 'add-image', imageId: image?.id })} />}
     {dialog && <Modal labelledBy="sheet-dialog" onClose={() => setDialog(null)} canClose={!busy}><div className="modal-heading"><h2 id="sheet-dialog">{dialog === 'delete-sheet' ? 'Delete worksheet' : dialog === 'rename-sheet' ? 'Rename worksheet' : 'Add worksheet'}</h2><button aria-label="Close worksheet dialog" disabled={busy} onClick={() => setDialog(null)}><X size={18} /></button></div>
       {dialog === 'delete-sheet' ? <p>Delete “{sheet.name}”? You can undo this change in the current tab.</p> : <label>Worksheet name<input aria-label="Worksheet name" value={sheetName} maxLength={31} onChange={event => setSheetName(event.target.value)} /></label>}
       <div className="modal-actions"><button disabled={busy} onClick={() => setDialog(null)}>Cancel</button><button className="primary" disabled={busy} onClick={async () => {

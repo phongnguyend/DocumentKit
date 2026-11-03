@@ -55,6 +55,20 @@ It supports a documented formula subset, rather than full Excel compatibility.
   each application is one undoable edit. Keyboard users can navigate to a destination
   with arrow keys and press Enter. Drag across destination cells to paint a rectangular range (up to 10,000 cells) in one undoable edit. Escape cancels a pending drag. Merged cells retain their existing structure; only their anchor cells are painted.
 - Add, rename, delete and reorder worksheets from the Worksheet menu.
+- **Add image** opens the same upload, hand-drawing and QR-code picker used by
+  the other ObjectKit playgrounds. The selected cell determines its initial position.
+  Use the original image dimensions or enter placement and size in pixels.
+- Select a picture to replace, download or delete it from the Inspector. Drag
+  the picture to move it, or use its eight handles to resize; release to save.
+  Escape cancels a drag, Delete removes the selected image, and undo/redo applies
+  to image changes. Replacement retains placement and size. Cell data and formula
+  caches are not changed by image edits.
+- Existing embedded PNG/JPEG pictures with one-cell, two-cell or absolute anchors
+  are displayed. New or moved pictures use absolute anchors (fixed pixel positions,
+  independent of later row/column resizing). Grouped, linked, vector and in-cell
+  pictures are not rendered. Cropped/rotated previews are approximate and cannot
+  be moved/resized in the playground. Deletion removes the drawing placement;
+  it is not secure removal of old media bytes from the package.
 - Download the edited XLSX. Undo/redo retains up to 20 snapshots, with a 100 MB
   history budget excluding the current snapshot (one prior snapshot is retained).
 
@@ -116,6 +130,12 @@ Edit actions are `cells`, `dimensions`, `add-sheet`, `rename-sheet`,
 Worksheet positions are zero-based. Sheet IDs are stable workbook IDs, not positions.
 `apply-format` takes `sourceSheetId`, `sourceAddress`, the destination `sheetId`, and
 an `addresses` array (up to 10,000 cells). The core API is `XlsxEditor.ApplyFormat`.
+
+Image actions are `add-image`, `replace-image`, `transform-image` and `delete-image`.
+They take `sheetId`, `imageId` (except insertion), `imageBase64` (insertion/replacement),
+and `x`, `y`, `width`, `height` in pixels (insertion/transform). PNG/JPEG inputs are
+limited to 5 MB. The core API is `XlsxImageEditor.Edit`; inspection exposes `Images`
+on each worksheet. The UI normalizes other browser-decodable raster formats to PNG.
 
 ## Native formula calculation
 
@@ -189,7 +209,7 @@ runs browser tests, and builds the Compose images.
   calculation inputs (numeric Excel date serials can participate in arithmetic).
 - Rename/delete is rejected when formulas or named ranges exist, since their
   references cannot yet be rewritten safely. Reordering rejects detected 3D formulas.
-- Charts, images, tables, conditional formatting, filters and other package parts
+- Charts, tables, conditional formatting, filters and other package parts
   are preserved but not rendered or edited. Preserving parts does not guarantee
   that advanced features remain semantically consistent after changing their inputs.
 - Fonts use installed browser/system fonts, with fallback when unavailable. Exact
@@ -199,7 +219,7 @@ runs browser tests, and builds the Compose images.
   back to stored values; locale-specific formats can differ from Excel. Wrapped
   and rotated text uses the stored row/column dimensions and can be clipped.
   Merged ranges crossing the current virtual window are not fully represented.
-- Range selection, row/column insertion/deletion, images,
+- Range selection, row/column insertion/deletion, image OCR,
   Markdown and native PDF export are future extensions. They are not provided by
   this first implementation.
 - Limits: 50 MB uploaded ZIP, 128 MB expanded, 32 MB per part, 10,000 parts,
