@@ -21,7 +21,8 @@ test('recalculate uploaded caches, update dependencies and download calculated v
   await page.getByRole('gridcell', { name: 'C1', exact: true }).click();
   await page.getByRole('textbox', { name: 'Formula bar' }).fill('=IF(TRUE,"",0)');
   await page.getByRole('button', { name: 'Apply cell value' }).click();
-  await expect(page.locator('.inspector')).toContainText('Calculated result: (empty text)');
+  await page.locator('.toolbar-menu summary').filter({ hasText: /^Cell value$/ }).click();
+  await expect(page.locator('.toolbar-menu[open]')).toContainText('Calculated result: (empty text)');
   await expect(page.getByRole('gridcell', { name: 'C1', exact: true })).toHaveText('');
   const downloaded = page.waitForEvent('download');
   await page.getByRole('button', { name: 'Download XLSX' }).click();
@@ -36,11 +37,13 @@ test('unsupported formulas and cycles are shown without fabricated results', asy
   await page.getByRole('button', { name: 'New workbook', exact: true }).click();
   await page.getByRole('textbox', { name: 'Formula bar' }).fill('=IFERROR(VLOOKUP(1,A2:A3,1),0)');
   await page.getByRole('button', { name: 'Apply cell value' }).click();
-  await expect(page.locator('.inspector')).toContainText('Function VLOOKUP is not supported');
+  await page.locator('.toolbar-menu summary').filter({ hasText: /^Workbook notes$/ }).click();
+  await expect(page.locator('.toolbar-menu[open]')).toContainText('Function VLOOKUP is not supported');
   await expect(page.getByRole('gridcell', { name: 'A1', exact: true })).toHaveText('=IFERROR(VLOOKUP(1,A2:A3,1),0)');
   await page.getByRole('textbox', { name: 'Formula bar' }).fill('=A1+1');
   await page.getByRole('button', { name: 'Apply cell value' }).click();
-  await expect(page.locator('.inspector')).toContainText('Circular reference detected');
+  await page.locator('.toolbar-menu summary').filter({ hasText: /^Workbook notes$/ }).click();
+  await expect(page.locator('.toolbar-menu[open]')).toContainText('Circular reference detected');
   await page.getByRole('textbox', { name: 'Formula bar' }).fill('=1/0');
   await page.getByRole('button', { name: 'Apply cell value' }).click();
   await expect(page.getByRole('gridcell', { name: 'A1', exact: true })).toHaveText('#DIV/0!');

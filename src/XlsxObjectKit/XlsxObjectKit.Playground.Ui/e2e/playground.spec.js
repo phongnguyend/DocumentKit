@@ -1,7 +1,7 @@
 import { test, expect } from '@playwright/test';
 import { readFile } from 'node:fs/promises';
 
-test('inspector selects stored cell types and preserves text and booleans during editing', async ({ page, request }) => {
+test('cell value action selects stored cell types and preserves text and booleans during editing', async ({ page, request }) => {
   const created = await request.post('/api/documents/new');
   const prepared = await request.post('/api/documents/edit', { multipart: {
     file: { name: 'types.xlsx', mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', buffer: await created.body() },
@@ -19,7 +19,9 @@ test('inspector selects stored cell types and preserves text and booleans during
   const type = page.getByRole('combobox', { name: 'Value type', exact: true });
   for (const [address, expected] of [['A1', 'text'], ['A2', 'number'], ['A3', 'boolean'], ['A4', 'formula'], ['A5', 'formula'], ['A6', 'auto']]) {
     await page.getByRole('gridcell', { name: address, exact: true }).click();
+    await page.locator('.toolbar-menu summary').filter({ hasText: /^Cell value$/ }).click();
     await expect(type).toHaveValue(expected);
+    await type.press('Escape');
   }
   await page.getByRole('gridcell', { name: 'A1', exact: true }).click();
   await page.getByRole('textbox', { name: 'Formula bar' }).fill('00456');
@@ -34,9 +36,12 @@ test('inspector selects stored cell types and preserves text and booleans during
   await page.getByRole('textbox', { name: 'Edit A3', exact: true }).fill('false');
   await page.getByRole('textbox', { name: 'Edit A3', exact: true }).press('Enter');
   await expect(page.getByRole('gridcell', { name: 'A3', exact: true })).toHaveText('FALSE');
+  await page.locator('.toolbar-menu summary').filter({ hasText: /^Cell value$/ }).click();
   await expect(type).toHaveValue('boolean');
+  await type.press('Escape');
   await page.getByRole('gridcell', { name: 'A3', exact: true }).click();
   await page.getByRole('grid').press('Delete');
+  await page.locator('.toolbar-menu summary').filter({ hasText: /^Cell value$/ }).click();
   await expect(type).toHaveValue('auto');
   await expect(page.getByRole('gridcell', { name: 'A3', exact: true })).toHaveText('');
 });
@@ -90,9 +95,11 @@ test('create, edit, format, manage worksheets, download and preserve separate ta
   await page.getByRole('textbox', { name: 'Edit A1', exact: true }).fill('Hello workbook');
   await page.getByRole('textbox', { name: 'Edit A1', exact: true }).press('Enter');
   await expect(a1).toHaveText('Hello workbook');
+  await page.locator('.toolbar-menu summary').filter({ hasText: /^Format$/ }).click();
   await page.getByRole('button', { name: 'Bold', exact: true }).click();
   await page.getByRole('button', { name: 'Apply formatting', exact: true }).click();
   await expect(a1).toHaveCSS('font-weight', '700');
+  await page.locator('.toolbar-menu summary').filter({ hasText: /^Size$/ }).click();
   await page.getByRole('spinbutton', { name: 'Row height (pt)' }).fill('40');
   await page.getByRole('button', { name: 'Apply sizes' }).click();
   await expect.poll(async () => (await a1.boundingBox()).height).toBeGreaterThan(50);
@@ -105,6 +112,7 @@ test('create, edit, format, manage worksheets, download and preserve separate ta
   await page.getByRole('textbox', { name: 'Worksheet name' }).fill('Notes');
   await page.getByRole('button', { name: 'Save worksheet' }).click();
   await expect(page.locator('.sheets-panel').getByRole('button', { name: 'Notes', exact: true })).toBeVisible();
+  await page.locator('.toolbar-menu summary').filter({ hasText: /^Cell value$/ }).click();
   await page.getByRole('combobox', { name: 'Value type', exact: true }).selectOption('formula');
   await page.getByRole('textbox', { name: 'Formula bar' }).fill('=1+2');
   await page.getByRole('button', { name: 'Apply cell value' }).click();
@@ -127,7 +135,6 @@ test('create, edit, format, manage worksheets, download and preserve separate ta
   await page.getByRole('tab', { name: 'Workbook.xlsx', exact: true }).click();
   await expect(page.getByRole('gridcell', { name: 'A1', exact: true })).toHaveText('Hello workbook');
   await expect(page.getByRole('gridcell', { name: 'A20', exact: true })).toBeVisible();
-  await page.locator('.workbook-panel:not([hidden]) .inspector').evaluate(element => element.scrollTop = 0);
   expect(await page.evaluate(() => document.documentElement.scrollHeight <= window.innerHeight)).toBeTruthy();
   await page.screenshot({ path: info.outputPath('xlsx-playground.png') });
 });
@@ -158,4 +165,28 @@ test('invalid uploads show a recoverable error', async ({ page }) => {
   await expect(page.getByRole('alert')).toBeVisible();
   await page.getByRole('button', { name: 'New workbook', exact: true }).click();
   await expect(page.getByRole('grid')).toBeVisible();
+});
+
+test('toolbar editors stay inside the viewport and leave the worksheet full width', async ({ page }, info) => {
+  await page.goto('/');
+  await page.getByRole('button', { name: 'New workbook', exact: true }).click();
+  await expect(page.getByRole('tab', { name: 'Workbook.xlsx', exact: true })).toHaveAttribute('title', 'Workbook.xlsx');
+  await expect(page.locator('.document-name')).toHaveCount(0);
+  for (const width of [1200, 720]) {
+    await page.setViewportSize({ width, height: 850 });
+    for (const label of ['Cell value', 'Format', 'Size', 'Workbook notes']) {
+      await page.locator('.toolbar-menu summary').filter({ hasText: new RegExp('^' + label + '$') }).click();
+      const panel = page.locator('.toolbar-menu[open] .toolbar-menu-panel');
+      await expect(panel).toBeVisible();
+      await expect.poll(async () => (await panel.boundingBox()).x).toBeGreaterThanOrEqual(7);
+      const bounds = await panel.boundingBox();
+      expect(bounds.x + bounds.width).toBeLessThanOrEqual(width - 7);
+      if (label === 'Cell value') {
+        await expect(page.getByRole('button', { name: 'Apply value', exact: true })).toHaveCSS('background-color', 'rgb(37, 99, 235)');
+        await page.screenshot({ path: info.outputPath('cell-value-' + width + '.png') });
+      }
+      await page.locator('.toolbar-menu[open] summary').press('Escape');
+    }
+    expect((await page.locator('.sheet-workspace').boundingBox()).width).toBeGreaterThan(width - 20);
+  }
 });

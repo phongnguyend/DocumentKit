@@ -24,11 +24,11 @@ It supports a documented formula subset, rather than full Excel compatibility.
 - A blank upload tab is present on startup and restored when the last tab is closed.
 - Browser-style document tabs preserve each workbook's worksheet, selection,
   scroll position and undo/redo history. Unsaved tabs use an in-app close dialog.
-- Worksheets on the left, a native virtualized grid in the center, Inspector on
-  the right, and toolbar actions aligned right. Panels scroll within the viewport.
+- Worksheet tabs along the bottom and a full-width native virtualized grid, with
+  Cell value, Format, Size, Image and Workbook notes actions in the top toolbar, and toolbar actions aligned right. Panels scroll within the viewport.
 - Select cells, navigate with arrow keys, double-click or press Enter/F2 to edit,
   press Enter to save, Escape to cancel, and Delete to clear.
-- Use the formula bar or Inspector to edit text, numbers, booleans or formulas.
+- Use the formula bar or Cell value action to edit text, numbers, booleans or formulas.
   Explicit Text type preserves leading zeros and literal strings beginning with `=`.
   Existing cells select their stored value type automatically (formula cells stay
   Formula regardless of their calculated result). Blank cells use Automatic.
@@ -43,7 +43,7 @@ It supports a documented formula subset, rather than full Excel compatibility.
 - Edits recalculate supported formulas and their dependencies automatically.
   **Recalculate** refreshes cached results in uploaded workbooks. Formula expressions
   remain editable and calculated values are saved in the downloaded XLSX.
-- Drag across cells to select a rectangular range in the current grid window. The outline and status show its address and cell count. Copy exports tab-separated values; Delete clears the range in one undoable edit (up to 10,000 cells). Click a cell, use arrow keys, or press Escape to leave the range. Editing and Inspector formatting still target the active cell.
+- Drag across cells to select a rectangular range in the current grid window. The outline and status show its address and cell count. Copy exports tab-separated values; Delete clears the range in one undoable edit (up to 10,000 cells). Click a cell, use arrow keys, or press Escape to leave the range. Editing and Format action still target the active cell.
 - Paste tab-separated rows/columns starting at the active cell (up to 10,000 cells).
 - Apply bold, italic, text/background colors and alignment. Existing font size,
   number format and border definitions are preserved when applying these controls.
@@ -55,7 +55,7 @@ It supports a documented formula subset, rather than full Excel compatibility.
   currency and scientific notation) through [SheetJS SSF](https://github.com/SheetJS/ssf).
   Both the 1900 and 1904 date systems are respected. The formula bar and cell editor
   retain the original values; display formatting does not change workbook data.
-- Set the selected row's height and column's width in the Inspector.
+- Set the selected row's height and column's width in the Size action.
 - Drag the right edge of a column header or the bottom edge of a row header to
   resize it. A guide shows the proposed size; release to save as one undoable edit.
   Escape cancels. Focus a resize handle and use arrow keys for one-unit changes.
@@ -75,7 +75,7 @@ It supports a documented formula subset, rather than full Excel compatibility.
 - **Add image** opens the same upload, hand-drawing and QR-code picker used by
   the other ObjectKit playgrounds. The selected cell determines its initial position.
   Use the original image dimensions or enter placement and size in pixels.
-- Select a picture to replace, download or delete it from the Inspector. Drag
+- Select a picture to replace, download or delete it from the Image action. Drag
   the picture to move it, or use its eight handles to resize; release to save.
   Escape cancels a drag, Delete removes the selected image, and undo/redo applies
   to image changes. Replacement retains placement and size. Cell data and formula
@@ -161,8 +161,8 @@ on each worksheet. The UI normalizes other browser-decodable raster formats to P
 ## Worksheet colors
 
 Worksheet colors are available from **Worksheet > Worksheet color**. Choose a
-preset or custom color, or **No color** to clear it. The worksheet list shows a
-color stripe while keeping the selected sheet distinct. Colors support undo/redo
+preset or custom color, or **No color** to clear it. The bottom bar uses Excel-style tabs: solid colors for inactive sheets and a
+tinted active tab with a colored underline. Colors support undo/redo
 and are saved in downloaded workbooks. Existing RGB, theme/tint and indexed tab
 colors are displayed. API/CLI: `set-sheet-color` with `sheetId` and `tabColor`
 (`#RRGGBB`, or `null` to clear); core API: `XlsxEditor.SetSheetColor`.

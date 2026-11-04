@@ -32,6 +32,7 @@ test('image insert, drag, resize, replace, download, delete and undo survive XLS
   await page.mouse.up();
   await expect(image).toHaveCSS('width', '280px');
   await expect(image).toHaveCSS('height', '180px');
+  await page.locator('.toolbar-menu summary').filter({ hasText: /^Image$/ }).click();
   await page.getByRole('button', { name: 'Replace image', exact: true }).click();
   await page.getByLabel('Image file', { exact: true }).setInputFiles({ name: 'replacement.png', mimeType: 'image/png', buffer: png });
   await page.getByRole('dialog').getByRole('button', { name: 'Replace image', exact: true }).click();
@@ -44,6 +45,7 @@ test('image insert, drag, resize, replace, download, delete and undo survive XLS
   expect(inspected.ok()).toBeTruthy();
   expect((await inspected.json()).sheets[0].images[0]).toMatchObject({ x: 40, y: 30, width: 280, height: 180 });
   const exportedImage = page.waitForEvent('download');
+  await page.locator('.toolbar-menu summary').filter({ hasText: /^Image$/ }).click();
   await page.getByRole('button', { name: 'Download image', exact: true }).click();
   expect(await readFile(await (await exportedImage).path())).toEqual(png);
   await image.focus();

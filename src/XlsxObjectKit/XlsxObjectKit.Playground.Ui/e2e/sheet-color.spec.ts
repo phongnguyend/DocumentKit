@@ -14,11 +14,11 @@ test('worksheet colors save, undo, clear and survive download', async ({ page, r
   await page.screenshot({ path: info.outputPath('sheet-color.png') });
   await page.getByRole('button', { name: 'Save color', exact: true }).click();
   await expect(page.getByRole('dialog')).toHaveCount(0);
-  await expect(sheet).toHaveCSS('box-shadow', 'rgb(22, 163, 74) 4px 0px 0px 0px inset');
+  await expect(sheet).toHaveCSS('box-shadow', 'rgb(22, 163, 74) 0px -2px 0px 0px inset');
   await page.getByRole('button', { name: 'Undo', exact: true }).click();
-  await expect(sheet).toHaveCSS('box-shadow', 'none');
+  await expect(sheet).not.toHaveAttribute('data-colored', 'true');
   await page.getByRole('button', { name: 'Redo', exact: true }).click();
-  await expect(sheet).toHaveCSS('box-shadow', 'rgb(22, 163, 74) 4px 0px 0px 0px inset');
+  await expect(sheet).toHaveCSS('box-shadow', 'rgb(22, 163, 74) 0px -2px 0px 0px inset');
   const download = page.waitForEvent('download');
   await page.getByRole('button', { name: 'Download XLSX', exact: true }).click();
   const file = await download;
@@ -28,5 +28,5 @@ test('worksheet colors save, undo, clear and survive download', async ({ page, r
   await expect(page.getByRole('button', { name: 'Color #16a34a', exact: true })).toHaveAttribute('aria-pressed', 'true');
   await page.getByRole('button', { name: 'No color', exact: true }).click();
   await page.getByRole('button', { name: 'Save color', exact: true }).click();
-  await expect(sheet).toHaveCSS('box-shadow', 'none');
+  await expect(sheet).not.toHaveAttribute('data-colored', 'true');
 });

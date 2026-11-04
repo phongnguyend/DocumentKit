@@ -1,8 +1,8 @@
 import { SheetColorDialog } from './components/SheetColorDialog';
 import { ConditionalFormatDialog } from './components/ConditionalFormatDialog';
-import { StrictMode, useEffect, useRef, useState } from 'react';
+import { StrictMode, useEffect, useRef, useState, type CSSProperties } from 'react';
 import { createRoot } from 'react-dom/client';
-import { Merge, Split, ImagePlus, Paintbrush, Calculator, Download, FolderOpen, Sheet as SheetIcon, Plus, X, Save, Trash2, Pencil, ArrowUp, ArrowDown, Undo2, Redo2, Bold, Italic } from 'lucide-react';
+import { Type, Palette, Ruler, Info, Merge, Split, ImagePlus, Paintbrush, Calculator, Download, FolderOpen, Sheet as SheetIcon, Plus, X, Save, Trash2, Pencil, ArrowUp, ArrowDown, Undo2, Redo2, Bold, Italic } from 'lucide-react';
 import { Modal } from './components/Modal';
 import { ToolbarMenu } from './components/ToolbarMenu';
 import { ImageSourceDialog } from './components/ImageSourceDialog';
@@ -16,6 +16,12 @@ import { ThemeSwitcher } from './components/ThemeSwitcher';
 import { applyTheme, readTheme } from './theme';
 
 applyTheme(readTheme());
+
+function tabTextColor(color: string) {
+  const channels = [1, 3, 5].map(offset => parseInt(color.slice(offset, offset + 2), 16) / 255)
+    .map(value => value <= 0.04045 ? value / 12.92 : ((value + 0.055) / 1.055) ** 2.4);
+  return channels[0] * 0.2126 + channels[1] * 0.7152 + channels[2] * 0.0722 > 0.179 ? '#171717' : '#ffffff';
+}
 
 type Tab = { id: number; name: string; initial: Snapshot | null; dirty: boolean };
 
@@ -43,6 +49,10 @@ function Workbook({ tab, onDirty, onBusy }: { tab: Tab & { initial: Snapshot }; 
   const [rowHeight, setRowHeight] = useState(21);
   const [columnWidth, setColumnWidth] = useState(14);
   const sheet = snapshot.info.sheets.find(item => item.id === sheetId) ?? snapshot.info.sheets.find(item => !item.hidden)!;
+  const sheetTabs = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    sheetTabs.current?.querySelector('[aria-current="page"]')?.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+  }, [sheet.id, snapshot.info.sheets.length]);
   const image = sheet.images?.find(item => item.id === selectedImage);
   useEffect(() => {
     setSelectedImage(undefined);
@@ -173,7 +183,7 @@ function Workbook({ tab, onDirty, onBusy }: { tab: Tab & { initial: Snapshot }; 
     setDialog(action);
   }
   return <div className="workbook-shell">
-    <div className="toolbar"><span className="document-name">{tab.name}</span><div className="toolbar-controls">
+    <div className="toolbar"><div className="toolbar-controls">
       <button aria-label="Undo" title="Undo" disabled={busy || !past.length} onClick={() => {
         setPainter(null);
         setSnapshot(past[past.length - 1]);
@@ -188,6 +198,33 @@ function Workbook({ tab, onDirty, onBusy }: { tab: Tab & { initial: Snapshot }; 
         setFuture(future.slice(1));
         onDirty(true);
       }}><Redo2 size={16} /></button>
+      <ToolbarMenu label="Cell value" icon={Type} disabled={busy || !!image} closeOnAction={false}><div className="toolbar-editor"><p className="help">{sheet.name} / {selected}</p>
+        <label>Value type<select value={type} disabled={busy} onChange={event => setType(event.target.value)}><option value="auto">Automatic</option><option value="text">Text</option><option value="number">Number</option><option value="boolean">Boolean</option><option value="formula">Formula</option>{type === 'date' && <option value="date" disabled>Date (read-only)</option>}{type === 'error' && <option value="error" disabled>Error (read-only)</option>}</select></label>
+        <label>Value or formula<textarea value={value} disabled={busy || !canEditValue} onChange={event => setValue(event.target.value)} rows={4} /></label>
+        <button className="primary" disabled={busy || !canEditValue} onClick={() => void edit({ action: 'cells', cells: [cellEdit(value, selected, type)] })}><Save size={16} />Apply value</button>
+        {!canEditValue && <p className="help">Choose a supported value type to replace this value, or press Delete in the grid to clear it.</p>}
+        {cell?.formula != null && <p className="help">{cell.hasCachedValue ? 'Calculated result: ' + (cell.type === 'b' ? cell.value === '1' ? 'TRUE' : 'FALSE' : cell.value || '(empty text)') : 'No calculated result. Recalculate and check Workbook notes for unsupported formulas or circular references.'}</p>}
+      </div></ToolbarMenu>
+      <ToolbarMenu label="Format" icon={Palette} disabled={busy || !!image} closeOnAction={false}><div className="toolbar-editor"><p className="help">{sheet.name} / {selected}</p>
+        <section className="format-editor"><h2>Formatting</h2><div className="format-toggles"><button aria-label="Bold" aria-pressed={format.bold} onClick={() => setFormat({ ...format, bold: !format.bold })}><Bold size={16} /></button><button aria-label="Italic" aria-pressed={format.italic} onClick={() => setFormat({ ...format, italic: !format.italic })}><Italic size={16} /></button></div>
+          <label>Text color<input type="color" value={format.color} onChange={event => setFormat({ ...format, color: event.target.value })} /></label><label>Background<input type="color" value={format.background} onChange={event => setFormat({ ...format, background: event.target.value })} /></label>
+          <label>Alignment<select value={format.alignment} onChange={event => setFormat({ ...format, alignment: event.target.value as Style['alignment'] })}><option>general</option><option>left</option><option>center</option><option>right</option><option>justify</option><option>distributed</option><option>fill</option><option>centerContinuous</option></select></label>
+          <button disabled={busy} onClick={() => void edit({ action: 'cells', cells: [{ address: selected, value: '' }], format })}><Save size={16} />Apply formatting</button>
+        </section>
+      </div></ToolbarMenu>
+      <ToolbarMenu label="Size" icon={Ruler} disabled={busy || !!image} closeOnAction={false}><div className="toolbar-editor">
+        <section className="format-editor"><h2>Row and column size</h2><label>Row height (pt)<input type="number" min="1" max="409" value={rowHeight} onChange={event => setRowHeight(+event.target.value)} /></label><label>Column width (characters)<input type="number" min="1" max="255" value={columnWidth} onChange={event => setColumnWidth(+event.target.value)} /></label><button disabled={busy} onClick={() => void edit({ action: 'dimensions', cells: [{ address: selected, value: '' }], rowHeight, columnWidth })}><Save size={16} />Apply sizes</button></section>
+      </div></ToolbarMenu>
+      <ToolbarMenu label="Image" icon={ImagePlus} disabled={busy || !image}>{image && <div className="toolbar-editor">
+        <p>{image.name}</p><p className="help">{Math.round(image.width)} x {Math.round(image.height)} px</p>
+        <p className="help">{image.editable ? 'Drag the picture to move it. Drag a handle to resize. Release to save; Escape cancels.' : 'This picture has crop or rotation effects. Its preview is approximate; geometry editing is unavailable.'}</p>
+        <div className="image-inspector-actions"><button disabled={busy} onClick={() => setImageDialog('replace')}><ImagePlus size={16} />Replace image</button><button onClick={() => {
+          const link = document.createElement('a');
+          link.href = image.dataUrl;
+          link.download = image.name + (image.dataUrl.startsWith('data:image/png') ? '.png' : '.jpg');
+          link.click();
+        }}><Download size={16} />Download image</button><button className="danger" disabled={busy} onClick={() => void edit({ action: 'delete-image', imageId: image.id })}><Trash2 size={16} />Delete image</button></div>      </div>}</ToolbarMenu>
+      <ToolbarMenu label="Workbook notes" icon={Info}><div className="toolbar-editor">{snapshot.info.warnings.map(warning => <p className="help" key={warning}>{warning}</p>)}</div></ToolbarMenu>
       <button disabled={busy} onClick={() => {
         setImageDialog('add');
         setPainter(null);
@@ -247,10 +284,6 @@ function Workbook({ tab, onDirty, onBusy }: { tab: Tab & { initial: Snapshot }; 
     </div></div>
     {error && <div role="alert" className="error-banner">{error}<button aria-label="Dismiss error" onClick={() => setError('')}><X size={14} /></button></div>}
     <div className="spreadsheet-layout">
-      <aside className="sheets-panel"><h2>Worksheets <small>{snapshot.info.sheets.length}</small></h2>{snapshot.info.sheets.map(item => <button key={item.id} style={{ boxShadow: item.tabColor ? `inset 4px 0 0 ${item.tabColor}` : undefined }} disabled={busy || item.hidden} aria-current={sheet.id === item.id ? 'page' : undefined} onClick={() => {
-        setSheetId(item.id);
-        setSelected('A1');
-      }}><SheetIcon size={16} /><span>{item.name}</span>{item.hidden && <small>Hidden</small>}</button>)}<button disabled={busy} className="add-sheet" onClick={() => openSheetDialog('add-sheet')}><Plus size={16} />Add worksheet</button></aside>
       <main className="sheet-workspace">
     {painter && <div className="painter-status" role="status"><Paintbrush size={16} /><span>Copying format from {snapshot.info.sheets.find(item => item.id === painter.sheetId)?.name}!{painter.address}. {painter.locked ? 'Keep painting: click or drag across destination cells.' : 'Click or drag across destination cells.'} Escape to cancel.</span><button onClick={() => setPainter(null)} aria-label="Cancel Format Painter"><X size={16} /></button></div>}
         <form className="formula-bar" onSubmit={event => {
@@ -282,34 +315,15 @@ function Workbook({ tab, onDirty, onBusy }: { tab: Tab & { initial: Snapshot }; 
           setSelectedImage(id);
           setPainter(null);
         }} onImageEdit={(imageId, action, bounds) => void edit({ action, imageId, ...bounds })} busy={busy} canEditValue={canEditValue && !painter} onPaint={painter ? destination => void paint(destination) : undefined} paintSource={painter?.sheetId === sheet.id ? painter.address : undefined} onEdit={text => void edit({ action: 'cells', cells: [cellEdit(text, selected, type)] })} onPaste={paste} />
-        <div className="sheet-status"><select className="mobile-sheet-select" aria-label="Current worksheet" value={sheet.id} disabled={busy} onChange={event => {
-          setSheetId(event.target.value);
-          setSelected('A1');
-        }}>{snapshot.info.sheets.filter(item => !item.hidden).map(item => <option key={item.id} value={item.id}>{item.name}</option>)}</select><span>{sheet.name} · {selected}</span><span>{busy ? 'Saving changes…' : 'Double-click to edit · Enter to save · Escape to cancel · Paste tab-separated cells'}</span></div>
+      <nav className="sheets-panel" aria-label="Worksheets"><div className="sheet-tabs" ref={sheetTabs}>{snapshot.info.sheets.map(item => <button key={item.id} title={item.hidden ? item.name + ' (hidden worksheet)' : item.name} data-colored={item.tabColor ? 'true' : undefined} style={{ '--sheet-color': item.tabColor ?? '#217346',
+        backgroundColor: sheet.id !== item.id ? item.tabColor ?? undefined : undefined,
+        color: sheet.id !== item.id && item.tabColor ? tabTextColor(item.tabColor) : undefined } as CSSProperties} disabled={busy || item.hidden} aria-current={sheet.id === item.id ? 'page' : undefined} onClick={() => {
+        setSheetId(item.id);
+        setSelected('A1');
+      }}><span>{item.name}</span>{item.hidden && <small>Hidden</small>}</button>)}</div><button disabled={busy} className="add-sheet" aria-label="Add worksheet" title="Add worksheet" onClick={() => openSheetDialog('add-sheet')}><Plus size={16} /></button><span className="sheet-bar-status" aria-live="polite" title="Double-click to edit. Enter saves; Escape cancels. Download XLSX to keep your changes.">{busy ? 'Saving?' : selected}</span></nav>
       </main>
-      <aside className="inspector">{image ? <><h2>Image <button aria-label="Close image inspector" onClick={() => setSelectedImage(undefined)}><X size={14} /></button></h2><p>{image.name}</p><p className="help">{Math.round(image.width)} x {Math.round(image.height)} px</p>
-        <p className="help">{image.editable ? 'Drag the picture to move it. Drag a handle to resize. Release to save; Escape cancels.' : 'This picture has crop or rotation effects. Its preview is approximate; geometry editing is unavailable.'}</p>
-        <div className="image-inspector-actions"><button disabled={busy} onClick={() => setImageDialog('replace')}><ImagePlus size={16} />Replace image</button><button onClick={() => {
-          const link = document.createElement('a');
-          link.href = image.dataUrl;
-          link.download = image.name + (image.dataUrl.startsWith('data:image/png') ? '.png' : '.jpg');
-          link.click();
-        }}><Download size={16} />Download image</button><button className="danger" disabled={busy} onClick={() => void edit({ action: 'delete-image', imageId: image.id })}><Trash2 size={16} />Delete image</button></div></> : <><h2>Inspector <small>CELL</small></h2><div className="cell-summary"><SheetIcon size={20} /><strong>{selected}</strong><span>{sheet.name}</span></div>
-        <label>Value type<select value={type} disabled={busy} onChange={event => setType(event.target.value)}><option value="auto">Automatic</option><option value="text">Text</option><option value="number">Number</option><option value="boolean">Boolean</option><option value="formula">Formula</option>{type === 'date' && <option value="date" disabled>Date (read-only)</option>}{type === 'error' && <option value="error" disabled>Error (read-only)</option>}</select></label>
-        <label>Value or formula<textarea value={value} disabled={busy || !canEditValue} onChange={event => setValue(event.target.value)} rows={4} /></label>
-        <button className="primary" disabled={busy || !canEditValue} onClick={() => void edit({ action: 'cells', cells: [cellEdit(value, selected, type)] })}><Save size={16} />Apply value</button>
-        {!canEditValue && <p className="help">Choose a supported value type to replace this value, or press Delete in the grid to clear it.</p>}
-        {cell?.formula != null && <p className="help">{cell.hasCachedValue ? 'Calculated result: ' + (cell.type === 'b' ? cell.value === '1' ? 'TRUE' : 'FALSE' : cell.value || '(empty text)') : 'No calculated result. Recalculate and check Workbook notes for unsupported formulas or circular references.'}</p>}
-        <section className="format-editor"><h2>Formatting</h2><div className="format-toggles"><button aria-label="Bold" aria-pressed={format.bold} onClick={() => setFormat({ ...format, bold: !format.bold })}><Bold size={16} /></button><button aria-label="Italic" aria-pressed={format.italic} onClick={() => setFormat({ ...format, italic: !format.italic })}><Italic size={16} /></button></div>
-          <label>Text color<input type="color" value={format.color} onChange={event => setFormat({ ...format, color: event.target.value })} /></label><label>Background<input type="color" value={format.background} onChange={event => setFormat({ ...format, background: event.target.value })} /></label>
-          <label>Alignment<select value={format.alignment} onChange={event => setFormat({ ...format, alignment: event.target.value as Style['alignment'] })}><option>general</option><option>left</option><option>center</option><option>right</option><option>justify</option><option>distributed</option><option>fill</option><option>centerContinuous</option></select></label>
-          <button disabled={busy} onClick={() => void edit({ action: 'cells', cells: [{ address: selected, value: '' }], format })}><Save size={16} />Apply formatting</button>
-        </section>
-        <section className="format-editor"><h2>Row and column size</h2><label>Row height (pt)<input type="number" min="1" max="409" value={rowHeight} onChange={event => setRowHeight(+event.target.value)} /></label><label>Column width (characters)<input type="number" min="1" max="255" value={columnWidth} onChange={event => setColumnWidth(+event.target.value)} /></label><button disabled={busy} onClick={() => void edit({ action: 'dimensions', cells: [{ address: selected, value: '' }], rowHeight, columnWidth })}><Save size={16} />Apply sizes</button></section>
-        <details open={snapshot.info.warnings.some(warning => warning.includes('!'))}><summary>Workbook notes</summary>{snapshot.info.warnings.map(warning => <p className="help" key={warning}>{warning}</p>)}</details>
-      </>} </aside>
+
     </div>
-    <footer><span>XlsxObjectKit · Native worksheet grid</span><span>Changes stay in this tab. Download to keep your workbook.</span></footer>
     {imageDialog && <ImageSourceDialog initialBounds={imageDialog === 'replace' && image ? { x: image.x, y: image.y, width: image.width, height: image.height } : { x: columnPosition(sheet, column), y: rowPosition(sheet, row), width: 240, height: 160 }} replacing={imageDialog === 'replace'} onClose={() => setImageDialog(null)} onApply={request => edit({ ...request, action: imageDialog === 'replace' ? 'replace-image' : 'add-image', imageId: image?.id })} />}
     {sheetColorOpen && <SheetColorDialog name={sheet.name} initialColor={sheet.tabColor} busy={busy} error={error} onClose={() => setSheetColorOpen(false)} onApply={tabColor => edit({ action: 'set-sheet-color', tabColor })} />}
     {conditionalOpen && <ConditionalFormatDialog sheet={sheet} initialRange={selectedRange} busy={busy} onEdit={edit} onClose={() => setConditionalOpen(false)} />}
@@ -408,7 +422,7 @@ function App() {
       }
       event.target.value = '';
     }} /></label></div></header>
-    <div className="document-tabs" role="tablist" aria-label="Workbooks">{tabs.map(tab => <div className={'document-tab' + (tab.id === active ? ' active' : '')} key={tab.id}><button role="tab" aria-selected={tab.id === active} disabled={busy} onClick={() => setActive(tab.id)}><SheetIcon size={14} /><span>{tab.name}{tab.dirty ? ' *' : ''}</span></button><button className="close-tab" aria-label={'Close ' + tab.name} disabled={busy} onClick={() => tab.dirty ? setClose(tab) : remove(tab)}><X size={14} /></button></div>)}<button className="new-tab" aria-label="New tab" title="New tab" disabled={busy || tabs.length >= 12} onClick={() => {
+    <div className="document-tabs" role="tablist" aria-label="Workbooks">{tabs.map(tab => <div className={'document-tab' + (tab.id === active ? ' active' : '')} key={tab.id}><button role="tab" title={tab.name} aria-selected={tab.id === active} disabled={busy} onClick={() => setActive(tab.id)}><SheetIcon size={14} /><span>{tab.name}{tab.dirty ? ' *' : ''}</span></button><button className="close-tab" aria-label={'Close ' + tab.name} disabled={busy} onClick={() => tab.dirty ? setClose(tab) : remove(tab)}><X size={14} /></button></div>)}<button className="new-tab" aria-label="New tab" title="New tab" disabled={busy || tabs.length >= 12} onClick={() => {
       const id = ++ids.current;
       setTabs(items => [...items, { id, name: 'New tab', initial: null, dirty: false }]);
       setActive(id);
