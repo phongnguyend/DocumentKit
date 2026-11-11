@@ -1,8 +1,8 @@
 # Playwright HTML-to-PDF Converter
 
 This project uses Playwright and its bundled Chromium browser to download a web
-page and convert it to PDF. The Docker image pins Playwright 1.61.0 to match the
-NuGet package used by the project and includes the .NET 10 runtime.
+page and convert it to PDF. The Docker image pins Playwright 1.64.1 to match the
+NuGet package used by the project and includes the .NET 11 runtime.
 
 ## Prerequisites
 
@@ -65,7 +65,7 @@ dotnet build .\HtmlToPdf.Playwright.Cli\HtmlToPdf.Playwright.Cli.csproj
 Install the Chromium version matching the project's Playwright package:
 
 ```powershell
-pwsh .\HtmlToPdf.Playwright.Cli\bin\Debug\net10.0\playwright.ps1 install chromium
+pwsh .\HtmlToPdf.Playwright.Cli\bin\Debug\net11.0\playwright.ps1 install chromium
 ```
 
 Then run the converter:

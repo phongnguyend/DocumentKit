@@ -1,6 +1,6 @@
 # DocxObjectKit
 
-A .NET 10 DOCX object library and React 19 playground following the PptxObjectKit
+A .NET 11 DOCX object library and React 19 playground following the PptxObjectKit
 project structure and interaction patterns. Edits preserve unrelated ZIP parts.
 The core uses .NET ZIP/XML APIs; native layout/PDF rendering lives in a separate
 SkiaSharp extension. No Word, LibreOffice, browser printing, or PDF screenshot

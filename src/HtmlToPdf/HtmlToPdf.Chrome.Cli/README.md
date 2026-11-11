@@ -1,7 +1,7 @@
 # Chrome CLI HTML-to-PDF Converter
 
 This project uses the Google Chrome command-line interface in headless mode to
-download a web page and convert it to PDF. The Docker image includes the .NET 10
+download a web page and convert it to PDF. The Docker image includes the .NET 11
 runtime and Google Chrome Stable.
 
 ## Prerequisites

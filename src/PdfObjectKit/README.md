@@ -1,6 +1,6 @@
 # PdfObjectKit
 
-C# / .NET 10 library and CLI for reading, editing, and writing PDF object graphs. They load a PDF's current indirect objects into memory, serialize them to JSON, and rebuild a PDF from that JSON. Reconstruction operates at the PDF object level, without re-rendering pages or embedding the entire original file. The CLI writes derived text, image, and paragraph data to separate JSON files by default. It also supports the Playground document operations offline: editing, page assembly, forms, annotations, metadata, watermarks, signing, security, flattening, compression, search, redaction, Markdown options/table hints, image export, rendering, comparison, OCR and QR generation. See the [CLI command guide](PdfObjectKit.Cli/README.md). Shared edit/inspection behavior lives in `PdfObjectKit.Application`; visual CLI commands use an optional local Node.js helper.
+C# / .NET 11 library and CLI for reading, editing, and writing PDF object graphs. They load a PDF's current indirect objects into memory, serialize them to JSON, and rebuild a PDF from that JSON. Reconstruction operates at the PDF object level, without re-rendering pages or embedding the entire original file. The CLI writes derived text, image, and paragraph data to separate JSON files by default. It also supports the Playground document operations offline: editing, page assembly, forms, annotations, metadata, watermarks, signing, security, flattening, compression, search, redaction, Markdown options/table hints, image export, rendering, comparison, OCR and QR generation. See the [CLI command guide](PdfObjectKit.Cli/README.md). Shared edit/inspection behavior lives in `PdfObjectKit.Application`; visual CLI commands use an optional local Node.js helper.
 
 ## Docker Compose
 
@@ -618,7 +618,7 @@ Edits are atomic: rejected operations leave the document unchanged. Read-only fi
 
 ## Browser playground
 
-`PdfObjectKit.Playground.Api` is a .NET 10 ASP.NET Core Minimal API. `PdfObjectKit.Playground.Ui` is a React 19 / TypeScript / Vite application. The API extracts text-line bounds, image placements and AcroForm widget rectangles; PDF.js renders the original PDF to canvas in the browser. A second canvas draws selectable overlays using the same viewport transformation, including crop and rotation. The inspector shows source references and metadata. Text bounds are approximate; text lines may contain multiple source runs. Vector paths and other raw PDF objects are rendered by PDF.js but are not individually selectable.
+`PdfObjectKit.Playground.Api` is a .NET 11 ASP.NET Core Minimal API. `PdfObjectKit.Playground.Ui` is a React 19 / TypeScript / Vite application. The API extracts text-line bounds, image placements and AcroForm widget rectangles; PDF.js renders the original PDF to canvas in the browser. A second canvas draws selectable overlays using the same viewport transformation, including crop and rotation. The inspector shows source references and metadata. Text bounds are approximate; text lines may contain multiple source runs. Vector paths and other raw PDF objects are rendered by PDF.js but are not individually selectable.
 
 Run the API from the repository root:
 

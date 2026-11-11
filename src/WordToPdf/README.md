@@ -43,7 +43,7 @@ The LibreOffice containers include Office conversion tools; the native container
 
 ## Local development
 
-Requires .NET 10 SDK, Node.js 22.12+, npm, and LibreOffice.
+Requires .NET 11 SDK, Node.js 22.12+, npm, and LibreOffice.
 Set `LIBREOFFICE_BIN` if LibreOffice is not at the standard Windows location
 or available as `soffice` on PATH on Linux. Start these in separate terminals:
 

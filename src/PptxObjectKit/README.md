@@ -1,6 +1,6 @@
 # PptxObjectKit
 
-A first version of a .NET 10 library and playground for opening, inspecting, editing, and saving `.pptx` presentations. It is independent of PdfObjectKit and LibreOffice. The core library uses ZIP and XML APIs from .NET and has no NuGet dependencies. The optional PDF extension uses SkiaSharp for native PDF output.
+A first version of a .NET 11 library and playground for opening, inspecting, editing, and saving `.pptx` presentations. It is independent of PdfObjectKit and LibreOffice. The core library uses ZIP and XML APIs from .NET and has no NuGet dependencies. The optional PDF extension uses SkiaSharp for native PDF output.
 
 ## Projects
 
@@ -36,7 +36,7 @@ Files are processed in memory by the API and are not saved there. Changes are ke
 
 ### Run locally
 
-Requires .NET 10 and Node.js 22.12+.
+Requires .NET 11 and Node.js 22.12+.
 
 From this directory, in separate terminals:
 

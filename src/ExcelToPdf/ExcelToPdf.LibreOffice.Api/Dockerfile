@@ -1,11 +1,11 @@
-FROM mcr.microsoft.com/dotnet/sdk:10.0-noble AS build
+FROM mcr.microsoft.com/dotnet/sdk:11.0-resolute AS build
 WORKDIR /src
 COPY ExcelToPdf.LibreOffice.Api/ExcelToPdf.LibreOffice.Api.csproj ExcelToPdf.LibreOffice.Api/
 RUN dotnet restore ExcelToPdf.LibreOffice.Api/ExcelToPdf.LibreOffice.Api.csproj
 COPY ExcelToPdf.LibreOffice.Api/ ExcelToPdf.LibreOffice.Api/
 RUN dotnet publish ExcelToPdf.LibreOffice.Api/ExcelToPdf.LibreOffice.Api.csproj -c Release -o /app/publish --no-restore
 
-FROM mcr.microsoft.com/dotnet/aspnet:10.0-noble AS final
+FROM mcr.microsoft.com/dotnet/aspnet:11.0-resolute AS final
 RUN apt-get update \
     && apt-get install -y --no-install-recommends libreoffice-calc libreoffice-writer fonts-dejavu-core fonts-liberation \
     && rm -rf /var/lib/apt/lists/*

@@ -1,11 +1,11 @@
 # HTML-to-PDF converters
 
-This solution demonstrates three ways to convert HTML into PDF with .NET 10:
+This solution demonstrates three ways to convert HTML into PDF with .NET 11:
 
 | Implementation | Console project | HTTP API project | Browser |
 | --- | --- | --- | --- |
 | Chrome CLI | `HtmlToPdf.Chrome.Cli` | `HtmlToPdf.Chrome.Api` | Google Chrome Stable |
-| Playwright | `HtmlToPdf.Playwright.Cli` | `HtmlToPdf.Playwright.Api` | Playwright Chromium 1.61.0 |
+| Playwright | `HtmlToPdf.Playwright.Cli` | `HtmlToPdf.Playwright.Api` | Playwright Chromium 1.64.1 |
 | PuppeteerSharp | `HtmlToPdf.PuppeteerSharp.Cli` | `HtmlToPdf.PuppeteerSharp.Api` | Google Chrome Stable |
 
 `HtmlToPdf.Proxy` provides a single YARP reverse-proxy endpoint for all three
@@ -21,7 +21,7 @@ then open http://localhost:5174 with the proxy and selected converter running.
 
 ## Prerequisites
 
-- .NET 10 SDK for local builds
+- .NET 11 SDK for local builds
 - Docker Desktop or Docker Engine for container builds
 - Internet access while building images and when uploaded HTML loads remote
   assets such as images, fonts, or stylesheets
@@ -259,7 +259,7 @@ Chromium binary first:
 
 ```powershell
 dotnet build .\HtmlToPdf.Playwright.Api\HtmlToPdf.Playwright.Api.csproj
-pwsh .\HtmlToPdf.Playwright.Api\bin\Debug\net10.0\playwright.ps1 install chromium
+pwsh .\HtmlToPdf.Playwright.Api\bin\Debug\net11.0\playwright.ps1 install chromium
 dotnet run --project .\HtmlToPdf.Playwright.Api
 ```
 

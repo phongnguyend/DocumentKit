@@ -4,7 +4,7 @@ COPY PdfObjectKit.Cli/visual/package*.json ./
 RUN npm ci --omit=dev --no-audit --no-fund
 COPY PdfObjectKit.Cli/visual/visual.mjs ./
 
-FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
+FROM mcr.microsoft.com/dotnet/sdk:11.0 AS build
 WORKDIR /src
 COPY Directory.Build.props ./
 COPY PdfObjectKit/PdfObjectKit.csproj PdfObjectKit/
@@ -16,7 +16,7 @@ RUN dotnet restore PdfObjectKit.Cli/PdfObjectKit.Cli.csproj
 COPY . ./
 RUN dotnet publish PdfObjectKit.Cli/PdfObjectKit.Cli.csproj -c Release -o /app/publish --no-restore -p:GeneratePackageOnBuild=false
 
-FROM mcr.microsoft.com/dotnet/runtime:10.0-noble AS final
+FROM mcr.microsoft.com/dotnet/runtime:11.0-resolute AS final
 WORKDIR /app
 COPY --from=build /app/publish ./
 COPY --from=visual /usr/local/bin/node /usr/local/bin/node

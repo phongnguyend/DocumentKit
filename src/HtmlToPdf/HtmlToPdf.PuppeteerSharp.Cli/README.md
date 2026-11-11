@@ -1,7 +1,7 @@
 # PuppeteerSharp HTML-to-PDF Converter
 
 This project uses PuppeteerSharp and Google Chrome in headless mode to download
-a web page and convert it to PDF. The Docker image includes the .NET 10 runtime
+a web page and convert it to PDF. The Docker image includes the .NET 11 runtime
 and Google Chrome Stable.
 
 ## Prerequisites

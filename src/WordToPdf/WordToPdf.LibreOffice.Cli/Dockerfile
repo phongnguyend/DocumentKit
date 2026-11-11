@@ -1,4 +1,4 @@
-FROM mcr.microsoft.com/dotnet/sdk:10.0-noble AS build
+FROM mcr.microsoft.com/dotnet/sdk:11.0-resolute AS build
 WORKDIR /src
 COPY WordToPdf.LibreOffice.Cli/WordToPdf.LibreOffice.Cli.csproj WordToPdf.LibreOffice.Cli/
 RUN dotnet restore WordToPdf.LibreOffice.Cli/WordToPdf.LibreOffice.Cli.csproj
@@ -6,7 +6,7 @@ COPY WordToPdf.LibreOffice.Cli/ WordToPdf.LibreOffice.Cli/
 COPY WordToPdf.LibreOffice.Api/LibreOfficeConverter.cs WordToPdf.LibreOffice.Api/
 RUN dotnet publish WordToPdf.LibreOffice.Cli/WordToPdf.LibreOffice.Cli.csproj -c Release -o /app/publish --no-restore
 
-FROM mcr.microsoft.com/dotnet/runtime:10.0-noble AS final
+FROM mcr.microsoft.com/dotnet/runtime:11.0-resolute AS final
 RUN apt-get update \
     && apt-get install -y --no-install-recommends libreoffice-calc libreoffice-writer fonts-dejavu-core fonts-liberation \
     && rm -rf /var/lib/apt/lists/*

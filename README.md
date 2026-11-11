@@ -1,7 +1,7 @@
 # DocumentKit
 
 Document libraries, conversion services, CLIs, and browser playgrounds built with
-.NET 10 and React. Each solution has its own build workflow and setup instructions.
+.NET 11 and React. Each solution has its own build workflow and setup instructions.
 
 - [XlsxObjectKit](src/XlsxObjectKit/README.md): inspect and edit XLSX workbooks in a native worksheet grid, manage worksheet tabs, format cells, insert and edit images, and save changes through a .NET API or CLI.
 - [DocxObjectKit](src/DocxObjectKit/README.md): inspect, edit and preview Word documents, manage text and images, extract Markdown, and export PDFs with a native .NET engine.
@@ -21,7 +21,7 @@ inside a playground directory to check theme behavior without starting its backe
 ## Build workflows
 
 GitHub Actions workflows run on pushes and pull requests matching their configured
-paths, and can also be started manually from the Actions tab. All use .NET 10;
+paths, and can also be started manually from the Actions tab. All use .NET 11;
 browser-test jobs also use Node.js 22 and Playwright.
 
 | Workflow | Build and validation | Release publishing |
@@ -149,3 +149,17 @@ Images require Linux containers and target AMD64.
 
 To stop the published deployment, run
 `docker compose -f compose.published.yaml down` from its solution folder.
+
+## NuGet dependency updates
+
+Direct dependencies were checked against NuGet.org stable releases on 2026-11-11.
+Two compatibility exceptions are intentional:
+
+- PDFsharp stays on 6.2.4 (MIT). Version 6.5 switches to AGPL/commercial licensing.
+- SkiaSharp and its Linux native assets use 3.119.4, the latest stable 3.x release.
+  Version 4.155.0 fails the current DOCX searchable-text and PPTX image-export
+  regression checks; upgrading it requires further compatibility work.
+
+The PdfSharp samples explicitly reference System.Security.Cryptography.Pkcs 11.0.0
+instead of the older vulnerable transitive version. Playwright Docker tags must
+match the Microsoft.Playwright NuGet version.

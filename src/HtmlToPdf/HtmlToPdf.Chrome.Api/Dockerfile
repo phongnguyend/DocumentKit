@@ -1,4 +1,4 @@
-FROM mcr.microsoft.com/dotnet/sdk:10.0-noble AS build
+FROM mcr.microsoft.com/dotnet/sdk:11.0-resolute AS build
 WORKDIR /src
 
 COPY HtmlToPdf.Chrome.Api.csproj ./
@@ -7,7 +7,7 @@ RUN dotnet restore
 COPY . ./
 RUN dotnet publish -c Release -o /app/publish --no-restore
 
-FROM mcr.microsoft.com/dotnet/aspnet:10.0-noble AS final
+FROM mcr.microsoft.com/dotnet/aspnet:11.0-resolute AS final
 
 RUN apt-get update \
     && apt-get install -y --no-install-recommends ca-certificates curl gnupg \

@@ -1,6 +1,6 @@
 # XlsxObjectKit
 
-Native .NET 10 XLSX inspection and editing, with a React 19 playground following
+Native .NET 11 XLSX inspection and editing, with a React 19 playground following
 the layout and immutable document-editing approach of the other ObjectKits.
 This is an initial spreadsheet editor with a from-scratch .NET calculation engine.
 It supports a documented formula subset, rather than full Excel compatibility.

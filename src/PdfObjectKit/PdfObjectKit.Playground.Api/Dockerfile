@@ -1,4 +1,4 @@
-FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
+FROM mcr.microsoft.com/dotnet/sdk:11.0 AS build
 WORKDIR /src
 COPY Directory.Build.props ./
 COPY PdfObjectKit/PdfObjectKit.csproj PdfObjectKit/
@@ -11,7 +11,7 @@ RUN dotnet restore PdfObjectKit.Playground.Api/PdfObjectKit.Playground.Api.cspro
 COPY . ./
 RUN dotnet publish PdfObjectKit.Playground.Api/PdfObjectKit.Playground.Api.csproj -c Release -o /app/publish --no-restore -p:GeneratePackageOnBuild=false
 
-FROM mcr.microsoft.com/dotnet/aspnet:10.0-noble AS final
+FROM mcr.microsoft.com/dotnet/aspnet:11.0-resolute AS final
 WORKDIR /app
 COPY --from=build /app/publish ./
 ENV ASPNETCORE_HTTP_PORTS=8080
